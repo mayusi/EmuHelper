@@ -39,7 +39,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class EmulatorSetupKeysViewModel @Inject constructor(
+class EmulatorSetupFirmwareViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val settings: SettingsStore
 ) : ViewModel() {
@@ -78,7 +78,7 @@ class EmulatorSetupKeysViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             _copyState.value = CopyState.Copying(0f)
             try {
-                val displayName = DocumentFile.fromSingleUri(context, pickedUri)?.name ?: "prod.keys"
+                val displayName = DocumentFile.fromSingleUri(context, pickedUri)?.name ?: "firmware.zip"
                 val fileSize = DocumentFile.fromSingleUri(context, pickedUri)?.length() ?: 0L
 
                 val inputStream = context.contentResolver.openInputStream(pickedUri)
@@ -94,7 +94,7 @@ class EmulatorSetupKeysViewModel @Inject constructor(
                     // made by other tools (e.g. EmuTran) are often lowercase, so reuse/overwrite by name.
                     val existing = tree?.listFiles()?.firstOrNull { it.name?.equals(displayName, ignoreCase = true) == true }
                     existing?.delete()
-                    tree?.createFile("application/octet-stream", displayName)?.uri?.let { destUri ->
+                    tree?.createFile("application/zip", displayName)?.uri?.let { destUri ->
                         context.contentResolver.openOutputStream(destUri)
                     }
                 } else {
@@ -132,7 +132,7 @@ class EmulatorSetupKeysViewModel @Inject constructor(
         try {
             val values = ContentValues().apply {
                 put(MediaStore.Downloads.DISPLAY_NAME, displayName)
-                put(MediaStore.Downloads.MIME_TYPE, "application/octet-stream")
+                put(MediaStore.Downloads.MIME_TYPE, "application/zip")
                 put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/EmuHelper-Setup")
             }
             val insertUri = context.contentResolver.insert(
@@ -144,20 +144,19 @@ class EmulatorSetupKeysViewModel @Inject constructor(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EmulatorSetupKeysScreen(
+fun EmulatorSetupFirmwareScreen(
     emulator: String,
     onBack: () -> Unit,
     onNext: (String) -> Unit,
-    onSkipFirmware: (String) -> Unit,
-    viewModel: EmulatorSetupKeysViewModel = hiltViewModel()
+    onSkip: (String) -> Unit,
+    viewModel: EmulatorSetupFirmwareViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val pickedUri by viewModel.pickedFileUri.collectAsState()
     val stagingUri by viewModel.stagingFolderUri.collectAsState()
     val copyState by viewModel.copyState.collectAsState()
-    var showInfoDialog by remember { mutableStateOf(false) }
 
-    val keysPicker = rememberLauncherForActivityResult(
+    val firmwarePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri -> if (uri != null) viewModel.onFilePicked(uri) }
 
@@ -165,27 +164,10 @@ fun EmulatorSetupKeysScreen(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri -> if (uri != null) viewModel.onStagingFolderPicked(uri) }
 
-    if (showInfoDialog) {
-        AlertDialog(
-            onDismissRequest = { showInfoDialog = false },
-            title = { Text("What is prod.keys?") },
-            text = {
-                Text(
-                    "prod.keys is a small file containing cryptographic keys specific to your Nintendo Switch console. Without it, Switch emulators cannot decrypt game data.\n\n" +
-                        "You must dump this file yourself using tools like Lockpick_RCM run on your own console. No legitimate source on the internet provides this file legally.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { showInfoDialog = false }) { Text("OK") }
-            }
-        )
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Import keys — $emulator", style = MaterialTheme.typography.titleLarge) },
+                title = { Text("Import firmware — $emulator", style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -211,26 +193,27 @@ fun EmulatorSetupKeysScreen(
             ) {
                 Column(Modifier.padding(16.dp)) {
                     Text(
-                        "What is this?",
+                        "What is firmware?",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "prod.keys is a file you must dump from your own Nintendo Switch console. This app only helps you move the file into your emulator — it does not provide the file.",
+                        "Firmware is the system software from your Nintendo Switch console. You must dump it yourself from your own console. This app provides none — it only helps you move the file you already have into your emulator.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    TextButton(onClick = { showInfoDialog = true }) {
-                        Text("What is prod.keys?")
-                    }
                 }
             }
 
             // --- File picker ---
             val hasFile = pickedUri != null
             Card(
-                onClick = { keysPicker.launch(arrayOf("*/*")) },
+                onClick = {
+                    firmwarePicker.launch(
+                        arrayOf("application/zip", "application/x-zip-compressed", "*/*")
+                    )
+                },
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
                     containerColor = if (hasFile) MaterialTheme.colorScheme.primaryContainer
@@ -246,7 +229,7 @@ fun EmulatorSetupKeysScreen(
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "Pick your prod.keys file",
+                            "Pick firmware zip",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -264,7 +247,7 @@ fun EmulatorSetupKeysScreen(
                             )
                         } else {
                             Text(
-                                "Tap to pick prod.keys from your device",
+                                "Tap to pick firmware .zip from your device",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -306,7 +289,7 @@ fun EmulatorSetupKeysScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Copy prod.keys to staging folder")
+                Text("Copy firmware to staging folder")
             }
 
             when (val state = copyState) {
@@ -325,10 +308,7 @@ fun EmulatorSetupKeysScreen(
                     )
                     Spacer(Modifier.height(4.dp))
                     TextButton(onClick = { onNext(emulator) }) {
-                        Text("Next: Import firmware →")
-                    }
-                    TextButton(onClick = { onSkipFirmware(emulator) }) {
-                        Text("Skip — just show instructions")
+                        Text("Next: Setup instructions →")
                     }
                 }
                 is CopyState.Error -> {
@@ -339,6 +319,10 @@ fun EmulatorSetupKeysScreen(
                     )
                 }
                 else -> Unit
+            }
+
+            TextButton(onClick = { onSkip(emulator) }) {
+                Text("Skip firmware")
             }
         }
     }

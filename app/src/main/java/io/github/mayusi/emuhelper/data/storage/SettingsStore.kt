@@ -47,7 +47,7 @@ class SettingsStore @Inject constructor(@ApplicationContext private val context:
      *  Default 16; allow up to 32 (Max throughput). */
     val segments: Flow<Int> = context.settingsStore.data.map { it[KEY_SEGMENTS] ?: 16 }
 
-    val extractArchives: Flow<Boolean> = context.settingsStore.data.map { it[KEY_EXTRACT] ?: true }
+    val extractArchives: Flow<Boolean> = context.settingsStore.data.map { it[KEY_EXTRACT] ?: false }
 
     suspend fun setDownloadFolder(uri: Uri?) {
         context.settingsStore.edit {

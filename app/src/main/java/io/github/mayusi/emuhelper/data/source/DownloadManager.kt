@@ -69,7 +69,7 @@ class DownloadManager @Inject constructor(
     /** Caller-tunable. Loaded from settings on each start(). */
     @Volatile private var segmentsPerFile = 4
     @Volatile private var concurrentFiles = 2
-    @Volatile private var extractArchives = true
+    @Volatile private var extractArchives = false
 
     // HARD SAFETY CEILING on simultaneous HTTP connections across ALL files+segments.
     // Without this, concurrentFiles(16) × segmentsPerFile(32) = 512 sockets + 128 MB of
@@ -261,8 +261,8 @@ class DownloadManager @Inject constructor(
         if (expected <= 0) return false
         return try {
             if (customRootBase != null) {
-                val dir = customRootBase.findFile(subfolder)?.takeIf { it.isDirectory }
-                val f = dir?.findFile(filename)
+                val dir = findChildCI(customRootBase, subfolder)?.takeIf { it.isDirectory }
+                val f = dir?.let { findChildCI(it, filename) }
                 f != null && f.length() >= expected * 99 / 100
             } else {
                 val f = File(File(defaultRootBase, subfolder), filename)
@@ -277,7 +277,7 @@ class DownloadManager @Inject constructor(
     ) {
         if (customRootBase != null) {
             val dir = resolveSafSubdir(customRootBase, subfolder)
-            dir.findFile(filename)?.delete()
+            findChildCI(dir, filename)?.delete()
             val out = dir.createFile("application/octet-stream", filename)
                 ?: throw java.io.IOException("Could not create file in chosen folder")
             appContext.contentResolver.openOutputStream(out.uri, "w")?.use { os ->
@@ -306,7 +306,7 @@ class DownloadManager @Inject constructor(
                         if (customRootBase != null) {
                             // SAF path: flatten all entries into the console subfolder
                             val dir = resolveSafSubdir(customRootBase, subfolder)
-                            dir.findFile(entryName)?.delete()
+                            findChildCI(dir, entryName)?.delete()
                             val outFile = dir.createFile("application/octet-stream", entryName)
                                 ?: throw java.io.IOException("Could not create file: $entryName")
                             appContext.contentResolver.openOutputStream(outFile.uri, "w")?.use { os ->
@@ -334,14 +334,22 @@ class DownloadManager @Inject constructor(
         }
     }
 
+    /** Case-insensitive child lookup; SAF's findFile is case-sensitive, but folders made by
+     *  other tools (e.g. EmuTran) are often lowercase. Returns the first name match or null. */
+    private fun findChildCI(parent: DocumentFile, displayName: String): DocumentFile? =
+        parent.listFiles().firstOrNull { it.name?.equals(displayName, ignoreCase = true) == true }
+
     private val safCache = java.util.concurrent.ConcurrentHashMap<String, DocumentFile>()
     @Synchronized
     private fun resolveSafSubdir(parent: DocumentFile, name: String): DocumentFile {
         if (name.isBlank()) return parent
-        val key = "${parent.uri}/$name"
+        // Case-insensitive cache key + lookup: reuse an existing folder even if its case
+        // differs (tools like EmuTran create lowercase folders, e.g. "psp" vs our "PSP"),
+        // so we don't create a duplicate "PSP (1)" next to it. SAF's findFile is case-sensitive.
+        val key = "${parent.uri}/${name.lowercase()}"
         safCache[key]?.let { if (it.exists()) return it }
-        val existing = parent.findFile(name)
-        val dir = if (existing != null && existing.isDirectory) existing else parent.createDirectory(name) ?: parent
+        val existing = parent.listFiles().firstOrNull { it.isDirectory && it.name?.equals(name, ignoreCase = true) == true }
+        val dir = if (existing != null) existing else parent.createDirectory(name) ?: parent
         safCache[key] = dir
         return dir
     }

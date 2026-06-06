@@ -37,7 +37,7 @@ class SettingsViewModel @Inject constructor(
 
     val segments: StateFlow<Int> = settings.segments.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 8)
     val concurrency: StateFlow<Int> = settings.concurrency.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 2)
-    val extractArchives: StateFlow<Boolean> = settings.extractArchives.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val extractArchives: StateFlow<Boolean> = settings.extractArchives.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     private val _testing = MutableStateFlow(false)
     val testing: StateFlow<Boolean> = _testing

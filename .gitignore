@@ -23,15 +23,21 @@ secrets.properties
 .env
 
 # ─── NEVER commit emulation keys / firmware (the app ships NONE) ────────────
-# Hard guard so no prod.keys/title.keys/firmware ever lands in the public repo.
+# Hard guard so no prod.keys/title.keys/firmware blob ever lands in the repo.
+# NOTE: patterns target real key/firmware ARTIFACTS only — never source files.
+# (Do not use a bare *firmware* glob: it would also ignore Kotlin sources like
+#  EmulatorSetupFirmwareScreen.kt, which MUST be committed.)
 *.keys
 prod.keys
 title.keys
 keys.txt
 *.nca
-*firmware*
+*.nsp
+*.xci
 /keys/
 /firmware/
+firmware/*.zip
+*.firmware
 
 # ─── IDE ───────────────────────────────────────────────────────────────────
 .idea/
