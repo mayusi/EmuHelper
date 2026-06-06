@@ -1,27 +1,33 @@
 # EmuHelper
 
-**EmuHelper is an Android app that helps you get your favourite emulation games onto your device — quickly and in one place.**
+**A configurable Android client for browsing and retrieving files from user‑supplied web archive endpoints.**
 
-Browse retro libraries by console, build reusable download lists, and pull your games down with a fast, multi-connection download manager that sorts everything into clean per‑console folders ready for your emulators.
+EmuHelper is a generic, source‑agnostic download manager. It reads collection metadata from endpoints you configure, lets you assemble and persist selections, and retrieves them with a concurrent transfer engine. It ships with **no endpoints and no content** — you bring your own.
 
-> **Status: Alpha (v0.1.0-alpha).** This is the first public release. Expect rough edges and please report issues.
+> **Status: Alpha (v0.1.1-alpha).** First public releases. Expect rough edges; please file issues.
 
 ---
 
-## Features
+## Overview
 
-- **Two ways to get games** — build a saved **list** to download later, or **instant install** to grab games right now.
-- **Browse by console** — PS1, PS2, PSP, Vita, N64, GameCube, Wii / Wii U, 3DS, DS, SNES, GBA, GB, Genesis, Dreamcast, Saturn, Arcade, BIOS and more.
-- **Powerful picking** — search, region filters (USA / EUR / JPN), size filters, sorting, and multi‑select across consoles.
-- **Saved lists** — name, reuse, and **export / import** lists as `.json` files to share or back up.
-- **Fast download manager**
-  - Multi‑connection (segmented) downloads with mirror fail‑over.
-  - Live per‑file progress, speed and ETA.
-  - Runs in the **background** via a foreground service — leave the app and downloads keep going (force‑closing stops them).
-  - **Auto‑extracts `.zip`** archives and files everything into per‑console folders (e.g. `ROMs/SNES/`).
-- **Settings** — tune connection count, a "max throughput" mode, a built‑in **network speed test**, and device info so you can tell whether a slow download is your Wi‑Fi or the app.
-- **Stays signed in** — your login is stored **encrypted on‑device** and restored automatically, so you don't sign in every time.
-- **Modern UI** — Jetpack Compose, Material 3, light/dark themes, smooth transitions.
+The app operates on an externally‑defined catalog of HTTP endpoints. For each configured group it parses a remote directory/metadata listing, presents the entries for selection, and transfers chosen items to local storage. Everything beyond the generic transfer/UI machinery — i.e. *which* endpoints exist — is provided by the operator at build time and is not part of this repository.
+
+---
+
+## Capabilities
+
+- **Two selection workflows** — assemble a persistent selection set for later retrieval, or run an immediate ad‑hoc retrieval session.
+- **Grouped catalog** — entries are organised into operator‑defined groups; the UI exposes one group at a time.
+- **Selection tooling** — substring filtering, tag‑based filtering (locale/region tokens), size‑bucket filtering, ordering, and cross‑group multi‑select.
+- **Persistent selection sets** — name, reuse, and serialise selection sets to/from portable `.json` documents for backup or transfer between installs.
+- **Concurrent transfer engine**
+  - Multi‑connection (range‑segmented) transfers with host fail‑over across mirror endpoints.
+  - Per‑item progress, throughput and time‑remaining estimates.
+  - Continues while the UI is not foregrounded, via a foreground service.
+  - Optional post‑transfer archive expansion (`.zip`) and grouping of outputs into per‑group destination folders.
+- **Transfer tuning** — adjustable connection count, a high‑throughput preset, an integrated link‑throughput probe, and a device capability readout.
+- **Session persistence** — operator credentials for the configured backend are retained in encrypted on‑device storage and re‑applied automatically.
+- **Modern UI** — Jetpack Compose · Material 3 · light/dark theming · animated navigation.
 
 ---
 
@@ -40,39 +46,37 @@ Browse retro libraries by console, build reusable download lists, and pull your 
 
 ## Building from source
 
-This repository **does not include the source URL list** (see *Sources* below). To build, create your own `Catalog.kt` from the committed template:
+This repository **contains no endpoint configuration**. The app reads its catalog from a single source file that is intentionally excluded from version control. To build, generate it from the committed template and supply your own endpoints:
 
 ```bash
 # 1. Clone
 git clone https://github.com/mayusi/EmuHelper.git
 cd EmuHelper
 
-# 2. Create the source list from the template
+# 2. Create the catalog from the template
 cp app/src/main/java/io/github/mayusi/emuhelper/data/config/Catalog.kt.template \
    app/src/main/java/io/github/mayusi/emuhelper/data/config/Catalog.kt
 
-# 3. Open Catalog.kt and fill in the IA_LINKS map with the source URLs you
-#    want the app to scan (it compiles and runs with empty lists too).
+# 3. Edit Catalog.kt and populate the endpoint map with the URLs you intend to use.
+#    It compiles and runs with empty groups; entries appear only once you add endpoints.
 
 # 4. Build
 ./gradlew :app:assembleDebug
 ```
 
-The resulting APK is at `app/build/outputs/apk/debug/app-debug.apk`.
-
-> Prefer not to build? Grab the prebuilt APK from the [Releases](https://github.com/mayusi/EmuHelper/releases) page.
+Output APK: `app/build/outputs/apk/debug/app-debug.apk`.
 
 ---
 
-## Sources
+## Configuration
 
-`Catalog.kt` (the file holding the collection URLs the app scans) is intentionally **kept out of this repository** and is git‑ignored. The committed `Catalog.kt.template` provides the full structure with empty lists so the project still compiles. Bring your own sources.
+`Catalog.kt` — the file mapping group keys to endpoint URLs — is **git‑ignored by design** so that no endpoints are published here. The committed `Catalog.kt.template` provides the full structure with empty groups so the project still compiles. The operator supplies endpoints locally.
 
 ---
 
-## Legal & disclaimer
+## Disclaimer
 
-EmuHelper is a **download manager / front‑end**. It hosts no content and ships with no source URLs. You are responsible for what you download and for complying with the laws of your country and the terms of any service you use. Only download games you legally own. The authors are not responsible for misuse.
+EmuHelper is a general‑purpose transfer utility and front‑end. It hosts nothing, bundles no endpoints, and has no knowledge of what an operator chooses to point it at. Users are solely responsible for the endpoints they configure, the data they retrieve, and for complying with all applicable laws and the terms of any service they access. The authors provide the software "as is" and accept no responsibility for how it is used.
 
 ---
 
@@ -86,4 +90,4 @@ Released under the **MIT License** — see [LICENSE](LICENSE).
 
 Built by **mayusi**.
 
-Development was assisted by **Anthropic's Claude** (used as an AI coding assistant for help with implementation, debugging, and documentation).
+Development was assisted by **Anthropic's Claude** (used as an AI coding assistant for implementation, debugging, and documentation).
