@@ -1,10 +1,12 @@
+<p align="center"><img src="docs/logo.png" alt="EmuHelper logo" width="120" height="120"></p>
+
 # EmuHelper
 
 **A configurable Android client for browsing and retrieving files from user‑supplied web archive endpoints.**
 
 EmuHelper is a generic, source‑agnostic download manager. It reads collection metadata from endpoints you configure, lets you assemble and persist selections, and retrieves them with a concurrent transfer engine. It ships with **no endpoints and no content** — you bring your own.
 
-> **Status: Alpha (v0.1.1-alpha).** First public releases. Expect rough edges; please file issues.
+> **Status: Early / Alpha (v0.1.3).** Still new — actively being built. Expect rough edges; please file issues.
 
 ---
 

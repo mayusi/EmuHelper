@@ -22,6 +22,17 @@ secrets.properties
 *.env
 .env
 
+# ─── NEVER commit emulation keys / firmware (the app ships NONE) ────────────
+# Hard guard so no prod.keys/title.keys/firmware ever lands in the public repo.
+*.keys
+prod.keys
+title.keys
+keys.txt
+*.nca
+*firmware*
+/keys/
+/firmware/
+
 # ─── IDE ───────────────────────────────────────────────────────────────────
 .idea/
 *.iml

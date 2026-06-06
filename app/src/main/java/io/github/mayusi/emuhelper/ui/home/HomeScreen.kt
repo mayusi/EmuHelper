@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -112,6 +113,7 @@ fun HomeScreen(
     onSignIn: () -> Unit,
     onSettings: () -> Unit = {},
     onOpenDownloads: () -> Unit = {},
+    onEmulatorSetup: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val ui by viewModel.ui.collectAsState()
@@ -173,6 +175,11 @@ fun HomeScreen(
                             text = { Text("Settings") },
                             leadingIcon = { Icon(Icons.Default.Settings, null) },
                             onClick = { menuOpen = false; onSettings() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Emulator setup") },
+                            leadingIcon = { Icon(Icons.Default.PhoneAndroid, null) },
+                            onClick = { menuOpen = false; onEmulatorSetup() }
                         )
                     }
                 },

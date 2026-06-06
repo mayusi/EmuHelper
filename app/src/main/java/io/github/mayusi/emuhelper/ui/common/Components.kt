@@ -2,7 +2,6 @@ package io.github.mayusi.emuhelper.ui.common
 
 import androidx.compose.ui.graphics.Color
 import java.io.File
-import kotlin.math.min
 
 fun formatSize(bytes: Long): String {
     var n = bytes.toDouble()

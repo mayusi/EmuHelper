@@ -27,6 +27,8 @@ class SettingsStore @Inject constructor(@ApplicationContext private val context:
         private val KEY_CONCURRENCY = intPreferencesKey("download_concurrency")
         private val KEY_SEGMENTS = intPreferencesKey("download_segments")
         private val KEY_EXTRACT = booleanPreferencesKey("extract_archives")
+        private val KEY_SEEN_SETUP_DISCLAIMER = booleanPreferencesKey("seen_setup_disclaimer")
+        private val KEY_SETUP_STAGING_FOLDER = stringPreferencesKey("setup_staging_folder_uri")
     }
 
     /** Persisted SAF URI for the user-chosen download folder, or null if using app-private dir. */
@@ -72,5 +74,22 @@ class SettingsStore @Inject constructor(@ApplicationContext private val context:
 
     suspend fun setExtractArchives(value: Boolean) {
         context.settingsStore.edit { it[KEY_EXTRACT] = value }
+    }
+
+    val seenSetupDisclaimer: Flow<Boolean> = context.settingsStore.data.map { it[KEY_SEEN_SETUP_DISCLAIMER] ?: false }
+
+    val setupStagingFolder: Flow<Uri?> = context.settingsStore.data.map {
+        it[KEY_SETUP_STAGING_FOLDER]?.let { s -> Uri.parse(s) }
+    }
+
+    suspend fun setSeenSetupDisclaimer(value: Boolean) {
+        context.settingsStore.edit { it[KEY_SEEN_SETUP_DISCLAIMER] = value }
+    }
+
+    suspend fun setSetupStagingFolder(uri: Uri?) {
+        context.settingsStore.edit {
+            if (uri != null) it[KEY_SETUP_STAGING_FOLDER] = uri.toString()
+            else it.remove(KEY_SETUP_STAGING_FOLDER)
+        }
     }
 }

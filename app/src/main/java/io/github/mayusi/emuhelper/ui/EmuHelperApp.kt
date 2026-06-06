@@ -37,10 +37,16 @@ import io.github.mayusi.emuhelper.ui.onboarding.CoachViewModel
 import io.github.mayusi.emuhelper.ui.onboarding.OnboardingScreen
 import io.github.mayusi.emuhelper.ui.onboarding.SkipExplainerScreen
 import io.github.mayusi.emuhelper.ui.settings.SettingsScreen
+import io.github.mayusi.emuhelper.ui.setup.EmulatorSetupDisclaimerScreen
+import io.github.mayusi.emuhelper.ui.setup.EmulatorSetupFirmwareScreen
+import io.github.mayusi.emuhelper.ui.setup.EmulatorSetupInstructionsScreen
+import io.github.mayusi.emuhelper.ui.setup.EmulatorSetupKeysScreen
+import io.github.mayusi.emuhelper.ui.setup.EmulatorSetupPickEmulatorScreen
 import io.github.mayusi.emuhelper.ui.theme.EmuHelperTheme
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 object Routes {
@@ -62,6 +68,16 @@ object Routes {
     const val DOWNLOAD = "download"
     const val SETTINGS = "settings"
 
+    const val EMULATOR_SETUP_DISCLAIMER    = "emulator_setup_disclaimer"
+    const val EMULATOR_SETUP_PICK_EMULATOR = "emulator_setup_pick_emulator"
+    const val EMULATOR_SETUP_KEYS          = "emulator_setup_keys/{emulator}"
+    const val EMULATOR_SETUP_FIRMWARE      = "emulator_setup_firmware/{emulator}"
+    const val EMULATOR_SETUP_INSTRUCTIONS  = "emulator_setup_instructions/{emulator}"
+
+    fun emulatorSetupKeys(emulator: String)         = "emulator_setup_keys/$emulator"
+    fun emulatorSetupFirmware(emulator: String)     = "emulator_setup_firmware/$emulator"
+    fun emulatorSetupInstructions(emulator: String) = "emulator_setup_instructions/$emulator"
+
     // login is registered with an optional ?next= argument.
     const val LOGIN_ROUTE = "login?next={next}"
     fun login(next: String) = "login?next=$next"
@@ -69,12 +85,19 @@ object Routes {
 
 @HiltViewModel
 class AppShellViewModel @Inject constructor(
-    settings: SettingsStore
+    private val settings: SettingsStore
 ) : ViewModel() {
     // null = still loading, true/false = known. REACTIVE so completing onboarding
     // immediately flips it (the old one-shot read stayed stale -> onboarding looped).
     val hasOnboarded: StateFlow<Boolean?> =
         settings.hasOnboarded.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    val seenSetupDisclaimer: StateFlow<Boolean> =
+        settings.seenSetupDisclaimer.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun markDisclaimerSeen() {
+        viewModelScope.launch { settings.setSeenSetupDisclaimer(true) }
+    }
 }
 
 @Composable
@@ -83,6 +106,7 @@ fun EmuHelperApp(modifier: Modifier = Modifier) {
         val navController = rememberNavController()
         val shellVm: AppShellViewModel = hiltViewModel()
         val onboarded by shellVm.hasOnboarded.collectAsState()
+        val seenDisclaimer by shellVm.seenSetupDisclaimer.collectAsState()
 
         // First-launch onboarding runs ONCE at startup (folder -> login -> coach),
         // gated on the persisted flag — NOT on button taps. This prevents the loop
@@ -126,7 +150,14 @@ fun EmuHelperApp(modifier: Modifier = Modifier) {
                     onDownload = { navController.navigate(Routes.LIST_LIBRARY) },
                     onSignIn = { navController.navigate(Routes.login(Routes.HOME)) },
                     onSettings = { navController.navigate(Routes.SETTINGS) },
-                    onOpenDownloads = { navController.navigate(Routes.DOWNLOAD) }
+                    onOpenDownloads = { navController.navigate(Routes.DOWNLOAD) },
+                    onEmulatorSetup = {
+                        if (seenDisclaimer) {
+                            navController.navigate(Routes.EMULATOR_SETUP_PICK_EMULATOR)
+                        } else {
+                            navController.navigate(Routes.EMULATOR_SETUP_DISCLAIMER)
+                        }
+                    }
                 )
             }
 
@@ -267,6 +298,63 @@ fun EmuHelperApp(modifier: Modifier = Modifier) {
                 DownloadScreen(
                     onDone = { navController.popBackStack(Routes.HOME, inclusive = false) },
                     onBack = { navController.popBackStack() }
+                )
+            }
+
+            // ---- Emulator Setup -------------------------------------------------
+            composable(Routes.EMULATOR_SETUP_DISCLAIMER) {
+                EmulatorSetupDisclaimerScreen(
+                    onAgree = {
+                        shellVm.markDisclaimerSeen()
+                        navController.navigate(Routes.EMULATOR_SETUP_PICK_EMULATOR)
+                    },
+                    onDisagree = { navController.popBackStack() }
+                )
+            }
+
+            composable(Routes.EMULATOR_SETUP_PICK_EMULATOR) {
+                EmulatorSetupPickEmulatorScreen(
+                    onBack = { navController.popBackStack() },
+                    onEmulatorSelected = { emulator ->
+                        navController.navigate(Routes.emulatorSetupKeys(emulator))
+                    }
+                )
+            }
+
+            composable(
+                route = Routes.EMULATOR_SETUP_KEYS,
+                arguments = listOf(navArgument("emulator") { type = NavType.StringType })
+            ) { entry ->
+                val emulator = entry.arguments?.getString("emulator") ?: "Eden"
+                EmulatorSetupKeysScreen(
+                    emulator = emulator,
+                    onBack = { navController.popBackStack() },
+                    onNext = { emu -> navController.navigate(Routes.emulatorSetupFirmware(emu)) },
+                    onSkipFirmware = { emu -> navController.navigate(Routes.emulatorSetupInstructions(emu)) }
+                )
+            }
+
+            composable(
+                route = Routes.EMULATOR_SETUP_FIRMWARE,
+                arguments = listOf(navArgument("emulator") { type = NavType.StringType })
+            ) { entry ->
+                val emulator = entry.arguments?.getString("emulator") ?: "Eden"
+                EmulatorSetupFirmwareScreen(
+                    emulator = emulator,
+                    onBack = { navController.popBackStack() },
+                    onNext = { emu -> navController.navigate(Routes.emulatorSetupInstructions(emu)) },
+                    onSkip = { emu -> navController.navigate(Routes.emulatorSetupInstructions(emu)) }
+                )
+            }
+
+            composable(
+                route = Routes.EMULATOR_SETUP_INSTRUCTIONS,
+                arguments = listOf(navArgument("emulator") { type = NavType.StringType })
+            ) { entry ->
+                val emulator = entry.arguments?.getString("emulator") ?: "Eden"
+                EmulatorSetupInstructionsScreen(
+                    emulator = emulator,
+                    onGoHome = { navController.popBackStack(Routes.HOME, inclusive = false) }
                 )
             }
         }
