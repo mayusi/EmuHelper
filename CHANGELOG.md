@@ -4,6 +4,28 @@ All notable changes to EmuHelper are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project follows a
 semantic-style versioning scheme while in alpha.
 
+## [0.1.7] — 2026-06-11
+
+### Added
+- **In-app update check** — on launch (at most once a day) the app checks for a
+  newer release and shows a dismissible "update available" banner.
+- **About screen** — version, project links, and a manual "check for updates"
+  button, reachable from the home menu.
+- **Download history** — completed and failed transfers are logged and viewable,
+  with a clear-history action.
+- **Notification controls** — pause/resume and cancel a running batch from the
+  download notification.
+- **Theme toggle** — choose System / Light / Dark in Settings.
+- **Rename saved lists** from the library.
+- **Free-space readout** with a "may not fit" warning before downloading.
+- Remembers your last selection so it's pre-ticked next time.
+
+### Changed
+- Cleans up orphaned temporary download files on launch.
+- UI polish: unified corner radius and spacing, smooth list animations, a
+  friendlier empty state in the picker, one-tap Settings on the home screen,
+  a step indicator in the guided file-staging flow, and accessibility fixes.
+
 ## [0.1.6] — 2026-06-08
 
 ### Changed

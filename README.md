@@ -17,7 +17,7 @@ EmuHelper is a generic, **source-agnostic** download and transfer manager for An
 
 It ships with **no endpoints and no content**. The "bring-your-own-endpoints" model is the whole idea: EmuHelper is the machinery for browsing and retrieving large files; *what* you point it at is entirely up to you and supplied at build time.
 
-> **Status: Early / Alpha — v0.1.6.** Still new and actively being built. Expect rough edges, and please file issues.
+> **Status: Early / Alpha — v0.1.7.** Still new and actively being built. Expect rough edges, and please file issues.
 
 ---
 
