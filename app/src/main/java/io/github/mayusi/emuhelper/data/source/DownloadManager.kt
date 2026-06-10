@@ -10,6 +10,8 @@ import io.github.mayusi.emuhelper.data.config.Catalog
 import io.github.mayusi.emuhelper.data.model.CuratedGame
 import io.github.mayusi.emuhelper.data.model.DownloadStatus
 import io.github.mayusi.emuhelper.data.model.DownloadTask
+import io.github.mayusi.emuhelper.data.storage.HistoryEntry
+import io.github.mayusi.emuhelper.data.storage.HistoryStore
 import io.github.mayusi.emuhelper.data.storage.SettingsStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -44,7 +46,8 @@ import javax.inject.Singleton
 class DownloadManager @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val source: RemoteSource,
-    private val settings: SettingsStore
+    private val settings: SettingsStore,
+    private val historyStore: HistoryStore
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -65,6 +68,8 @@ class DownloadManager @Inject constructor(
 
     @Volatile private var cancelRequested = false
     private var batchJob: Job? = null
+    /** Guards against double-recording history for the same batch. */
+    @Volatile private var batchHistoryRecorded = false
 
     /** Caller-tunable. Loaded from settings on each start(). */
     @Volatile private var segmentsPerFile = 4
@@ -87,6 +92,7 @@ class DownloadManager @Inject constructor(
         _isRunning.value = true
         _isPaused.value = false
         cancelRequested = false
+        batchHistoryRecorded = false
         DownloadService.start(appContext)
 
         batchJob = scope.launch {
@@ -167,6 +173,7 @@ class DownloadManager @Inject constructor(
                 done == 0 -> "All $failed downloads failed"
                 else -> "Done: $done · Failed: $failed"
             }
+            recordBatchHistory(_tasks.value)
             _isRunning.value = false
             DownloadService.stop(appContext)
         }
@@ -196,8 +203,14 @@ class DownloadManager @Inject constructor(
         }
     }
 
-    fun pause() { _isPaused.value = true }
-    fun resume() { _isPaused.value = false }
+    fun pause() {
+        _isPaused.value = true
+        if (_isRunning.value) DownloadService.updatePausedState(appContext, paused = true)
+    }
+    fun resume() {
+        _isPaused.value = false
+        if (_isRunning.value) DownloadService.updatePausedState(appContext, paused = false)
+    }
     fun cancelAll() {
         cancelRequested = true
         batchJob?.cancel()
@@ -209,12 +222,19 @@ class DownloadManager @Inject constructor(
     /** Reset visible state when the user leaves a finished batch. */
     fun clear() {
         if (_isRunning.value) return
+        // Record any terminal tasks not yet captured at batch-complete time (e.g. partial
+        // retry batches, or if the user cancels mid-way and taps Done).
+        val snapshot = _tasks.value
+        if (snapshot.isNotEmpty()) {
+            scope.launch { recordBatchHistory(snapshot) }
+        }
         _tasks.value = emptyList()
         _statusText.value = "Preparing..."
         _totalProgress.value = 0f
         _totalSpeed.value = 0.0
         _eta.value = "--"
         smoothedSpeed = 0.0
+        batchHistoryRecorded = false
     }
 
     // ---- one file ---------------------------------------------------------
@@ -381,6 +401,35 @@ class DownloadManager @Inject constructor(
         val dir = if (existing != null) existing else parent.createDirectory(name) ?: parent
         safCache[key] = dir
         return dir
+    }
+
+    // ---- history recording -----------------------------------------------
+
+    /**
+     * Snapshot terminal [DownloadTask]s into [HistoryStore]. Uses [batchHistoryRecorded] as a
+     * guard so the same batch is never written twice (once at batch-complete, once at clear()).
+     * Records only DONE/FAILED/CANCELLED tasks; skips QUEUED/DOWNLOADING/PAUSED.
+     */
+    private suspend fun recordBatchHistory(tasks: List<DownloadTask>) {
+        if (batchHistoryRecorded) return
+        val terminal = tasks.filter {
+            it.status == DownloadStatus.DONE ||
+            it.status == DownloadStatus.FAILED ||
+            it.status == DownloadStatus.CANCELLED
+        }
+        if (terminal.isEmpty()) return
+        batchHistoryRecorded = true
+        val now = System.currentTimeMillis()
+        val entries = terminal.map { task ->
+            HistoryEntry(
+                filename = task.filename,
+                subfolder = task.subfolder,
+                sizeBytes = task.size,
+                status = task.status.name,
+                timestampMillis = now
+            )
+        }
+        historyStore.addAll(entries)
     }
 
     // ---- state plumbing ---------------------------------------------------

@@ -23,7 +23,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.mayusi.emuhelper.data.storage.SettingsStore
+import io.github.mayusi.emuhelper.ui.about.AboutScreen
 import io.github.mayusi.emuhelper.ui.browse.ConsoleSelectScreen
+import io.github.mayusi.emuhelper.ui.history.HistoryScreen
 import io.github.mayusi.emuhelper.ui.browse.GamePickerScreen
 import io.github.mayusi.emuhelper.ui.browse.ScanProgressScreen
 import io.github.mayusi.emuhelper.ui.download.DownloadPreviewScreen
@@ -43,6 +45,7 @@ import io.github.mayusi.emuhelper.ui.setup.EmulatorSetupInstructionsScreen
 import io.github.mayusi.emuhelper.ui.setup.EmulatorSetupKeysScreen
 import io.github.mayusi.emuhelper.ui.setup.EmulatorSetupPickEmulatorScreen
 import io.github.mayusi.emuhelper.ui.theme.EmuHelperTheme
+import io.github.mayusi.emuhelper.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -67,6 +70,8 @@ object Routes {
     const val DOWNLOAD_PREVIEW = "download_preview"
     const val DOWNLOAD = "download"
     const val SETTINGS = "settings"
+    const val ABOUT = "about"
+    const val HISTORY = "history"
 
     const val EMULATOR_SETUP_DISCLAIMER    = "emulator_setup_disclaimer"
     const val EMULATOR_SETUP_PICK_EMULATOR = "emulator_setup_pick_emulator"
@@ -95,6 +100,9 @@ class AppShellViewModel @Inject constructor(
     val seenSetupDisclaimer: StateFlow<Boolean> =
         settings.seenSetupDisclaimer.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    val themeMode: StateFlow<ThemeMode> =
+        settings.themeMode.stateIn(viewModelScope, SharingStarted.Eagerly, ThemeMode.SYSTEM)
+
     fun markDisclaimerSeen() {
         viewModelScope.launch { settings.setSeenSetupDisclaimer(true) }
     }
@@ -102,9 +110,10 @@ class AppShellViewModel @Inject constructor(
 
 @Composable
 fun EmuHelperApp(modifier: Modifier = Modifier) {
-    EmuHelperTheme {
+    val shellVm: AppShellViewModel = hiltViewModel()
+    val themeMode by shellVm.themeMode.collectAsState()
+    EmuHelperTheme(themeMode = themeMode) {
         val navController = rememberNavController()
-        val shellVm: AppShellViewModel = hiltViewModel()
         val onboarded by shellVm.hasOnboarded.collectAsState()
         val seenDisclaimer by shellVm.seenSetupDisclaimer.collectAsState()
 
@@ -157,8 +166,13 @@ fun EmuHelperApp(modifier: Modifier = Modifier) {
                         } else {
                             navController.navigate(Routes.EMULATOR_SETUP_DISCLAIMER)
                         }
-                    }
+                    },
+                    onAbout = { navController.navigate(Routes.ABOUT) }
                 )
+            }
+
+            composable(Routes.ABOUT) {
+                AboutScreen(onBack = { navController.popBackStack() })
             }
 
             composable(Routes.SETTINGS) {
@@ -297,8 +311,13 @@ fun EmuHelperApp(modifier: Modifier = Modifier) {
             composable(Routes.DOWNLOAD) {
                 DownloadScreen(
                     onDone = { navController.popBackStack(Routes.HOME, inclusive = false) },
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onHistory = { navController.navigate(Routes.HISTORY) }
                 )
+            }
+
+            composable(Routes.HISTORY) {
+                HistoryScreen(onBack = { navController.popBackStack() })
             }
 
             // ---- Emulator Setup -------------------------------------------------

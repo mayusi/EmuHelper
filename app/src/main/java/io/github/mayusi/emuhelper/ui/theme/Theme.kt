@@ -18,6 +18,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 
+/** User-chosen theme preference. SYSTEM follows the OS dark-mode setting. */
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
 // "Modern dark, vibrant accent" — near-black canvas, electric violet accent with
 // cyan + green supports. Tuned for OLED and a modern media-app feel.
 private val DarkScheme = darkColorScheme(
@@ -85,10 +88,17 @@ private val AppTypography = Typography().run {
 
 @Composable
 fun EmuHelperTheme(
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    // Legacy parameter kept for backward-compatibility; themeMode takes precedence.
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkScheme else LightScheme
+    val useDark = when (themeMode) {
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+    }
+    val colorScheme = if (useDark) DarkScheme else LightScheme
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -97,8 +107,8 @@ fun EmuHelperTheme(
             // enableEdgeToEdge() the system handles bar colors automatically, we
             // only need to flip the icon-appearance flags so they stay readable.
             val controller = WindowCompat.getInsetsController(window, view)
-            controller.isAppearanceLightStatusBars = !darkTheme
-            controller.isAppearanceLightNavigationBars = !darkTheme
+            controller.isAppearanceLightStatusBars = !useDark
+            controller.isAppearanceLightNavigationBars = !useDark
         }
     }
     MaterialTheme(

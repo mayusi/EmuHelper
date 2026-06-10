@@ -2,7 +2,6 @@ package io.github.mayusi.emuhelper.ui.settings
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -22,6 +21,7 @@ import io.github.mayusi.emuhelper.data.source.SpeedResult
 import io.github.mayusi.emuhelper.data.source.SpeedTester
 import io.github.mayusi.emuhelper.data.storage.SettingsStore
 import io.github.mayusi.emuhelper.ui.common.Dimens
+import io.github.mayusi.emuhelper.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -38,6 +38,7 @@ class SettingsViewModel @Inject constructor(
     val segments: StateFlow<Int> = settings.segments.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 8)
     val concurrency: StateFlow<Int> = settings.concurrency.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 2)
     val extractArchives: StateFlow<Boolean> = settings.extractArchives.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val themeMode: StateFlow<ThemeMode> = settings.themeMode.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemeMode.SYSTEM)
 
     private val _testing = MutableStateFlow(false)
     val testing: StateFlow<Boolean> = _testing
@@ -49,6 +50,7 @@ class SettingsViewModel @Inject constructor(
     fun setSegments(v: Int) { viewModelScope.launch { settings.setSegments(v) } }
     fun setConcurrency(v: Int) { viewModelScope.launch { settings.setConcurrency(v) } }
     fun setExtract(v: Boolean) { viewModelScope.launch { settings.setExtractArchives(v) } }
+    fun setThemeMode(mode: ThemeMode) { viewModelScope.launch { settings.setThemeMode(mode) } }
 
     fun maxThroughput() {
         viewModelScope.launch {
@@ -78,6 +80,7 @@ fun SettingsScreen(
     val segments by viewModel.segments.collectAsState()
     val concurrency by viewModel.concurrency.collectAsState()
     val extractArchives by viewModel.extractArchives.collectAsState()
+    val themeMode by viewModel.themeMode.collectAsState()
     val testing by viewModel.testing.collectAsState()
     val result by viewModel.result.collectAsState()
     val device = remember { viewModel.device }
@@ -105,6 +108,34 @@ fun SettingsScreen(
                 .padding(horizontal = Dimens.ScreenHorizontal, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // ---- Appearance ----
+            SettingCard(title = "Appearance") {
+                Text("Theme", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ThemeMode.entries.forEach { mode ->
+                        val label = when (mode) {
+                            ThemeMode.SYSTEM -> "System"
+                            ThemeMode.LIGHT  -> "Light"
+                            ThemeMode.DARK   -> "Dark"
+                        }
+                        val selected = themeMode == mode
+                        FilterChip(
+                            selected = selected,
+                            onClick = { viewModel.setThemeMode(mode) },
+                            label = { Text(label) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    }
+                }
+            }
+
             // ---- Download speed controls ----
             SettingCard(title = "Download speed") {
                 Text("Connections per file: $segments", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
@@ -127,7 +158,7 @@ fun SettingsScreen(
                 Spacer(Modifier.height(8.dp))
                 Button(
                     onClick = { viewModel.maxThroughput() },
-                    shape = RoundedCornerShape(10.dp),
+                    shape = MaterialTheme.shapes.small,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) { Text("Max throughput (16 conns × 2 files)") }
                 Text(
@@ -161,7 +192,7 @@ fun SettingsScreen(
                 Button(
                     onClick = { viewModel.runSpeedTest() },
                     enabled = !testing,
-                    shape = RoundedCornerShape(10.dp),
+                    shape = MaterialTheme.shapes.small,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)
                 ) {
                     if (testing) {
@@ -205,7 +236,7 @@ private fun SettingCard(title: String, content: @Composable ColumnScope.() -> Un
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp)
+        shape = MaterialTheme.shapes.medium
     ) {
         Column(Modifier.padding(16.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)

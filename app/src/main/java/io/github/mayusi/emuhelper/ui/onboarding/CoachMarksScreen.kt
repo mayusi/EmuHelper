@@ -1,7 +1,6 @@
 package io.github.mayusi.emuhelper.ui.onboarding
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Download
@@ -64,7 +63,7 @@ fun CoachMarksScreen(
                 .fillMaxWidth(0.92f)
                 .widthIn(max = 560.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(20.dp)
+            shape = MaterialTheme.shapes.extraLarge
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
@@ -121,7 +120,7 @@ fun CoachMarksScreen(
                             }
                         },
                         modifier = Modifier.height(Dimens.ButtonMinHeight),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = MaterialTheme.shapes.small,
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Text(

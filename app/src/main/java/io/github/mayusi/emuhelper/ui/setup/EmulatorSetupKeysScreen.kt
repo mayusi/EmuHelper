@@ -10,7 +10,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -203,11 +202,24 @@ fun EmulatorSetupKeysScreen(
                 .padding(horizontal = Dimens.ScreenHorizontal, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Step indicator
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "Step 1 of 3",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(4.dp))
+                LinearProgressIndicator(
+                    progress = { 1f / 3f },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
             // --- What is this? ---
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(14.dp)
+                shape = MaterialTheme.shapes.medium
             ) {
                 Column(Modifier.padding(16.dp)) {
                     Text(
@@ -236,7 +248,7 @@ fun EmulatorSetupKeysScreen(
                     containerColor = if (hasFile) MaterialTheme.colorScheme.primaryContainer
                     else MaterialTheme.colorScheme.surfaceVariant
                 ),
-                shape = RoundedCornerShape(14.dp)
+                shape = MaterialTheme.shapes.medium
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -277,7 +289,7 @@ fun EmulatorSetupKeysScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(14.dp)
+                shape = MaterialTheme.shapes.medium
             ) {
                 Column(Modifier.padding(16.dp)) {
                     Text(
@@ -304,7 +316,7 @@ fun EmulatorSetupKeysScreen(
                 onClick = { viewModel.copyToStaging(context) },
                 enabled = pickedUri != null && copyState !is CopyState.Copying,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+                shape = MaterialTheme.shapes.small
             ) {
                 Text("Copy prod.keys to staging folder")
             }
@@ -324,11 +336,17 @@ fun EmulatorSetupKeysScreen(
                         color = MaterialTheme.colorScheme.primary
                     )
                     Spacer(Modifier.height(4.dp))
-                    TextButton(onClick = { onNext(emulator) }) {
-                        Text("Next: Import firmware →")
+                    Button(
+                        onClick = { onNext(emulator) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Next: Import firmware")
                     }
-                    TextButton(onClick = { onSkipFirmware(emulator) }) {
-                        Text("Skip — just show instructions")
+                    OutlinedButton(
+                        onClick = { onSkipFirmware(emulator) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Skip firmware — show instructions")
                     }
                 }
                 is CopyState.Error -> {

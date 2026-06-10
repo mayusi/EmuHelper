@@ -7,10 +7,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.MoreVert
@@ -18,6 +18,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -65,6 +67,10 @@ fun ListLibraryScreen(
 
     // Holds the list pending deletion; non-null shows the confirmation dialog.
     var deleteTarget by remember { mutableStateOf<GameList?>(null) }
+
+    // Holds the list pending rename; non-null shows the rename dialog.
+    var renameTarget by remember { mutableStateOf<GameList?>(null) }
+    var renameText by remember { mutableStateOf("") }
 
     // Export: remember which list, then write its JSON to the chosen file.
     var exportTarget by remember { mutableStateOf<GameList?>(null) }
@@ -122,13 +128,13 @@ fun ListLibraryScreen(
                     ) {
                         Button(
                             onClick = onMakeList,
-                            shape = RoundedCornerShape(12.dp),
+                            shape = MaterialTheme.shapes.small,
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             modifier = Modifier.weight(1f).height(Dimens.ButtonMinHeight)
                         ) { Text("Make a list") }
                         OutlinedButton(
                             onClick = { importer.launch(arrayOf("application/json", "text/*", "*/*")) },
-                            shape = RoundedCornerShape(12.dp),
+                            shape = MaterialTheme.shapes.small,
                             modifier = Modifier.weight(1f).height(Dimens.ButtonMinHeight)
                         ) {
                             Icon(Icons.Default.FileUpload, contentDescription = "Import list", modifier = Modifier.size(18.dp))
@@ -147,13 +153,13 @@ fun ListLibraryScreen(
                 items(lists, key = { it.id }) { list ->
                     var menuOpen by remember { mutableStateOf(false) }
                     Card(
-                        modifier = Modifier.fillMaxWidth().clickable {
+                        modifier = Modifier.fillMaxWidth().animateItem().clickable {
                             // Load this list's games into the download queue, then open the preview.
                             viewModel.loadForDownload(list)
                             onOpen(list)
                         },
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = MaterialTheme.shapes.medium
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(vertical = Dimens.CardPadding, horizontal = Dimens.CardPadding + 2.dp),
@@ -172,6 +178,15 @@ fun ListLibraryScreen(
                                     Icon(Icons.Default.MoreVert, contentDescription = "List actions")
                                 }
                                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                    DropdownMenuItem(
+                                        text = { Text("Rename") },
+                                        leadingIcon = { Icon(Icons.Default.DriveFileRenameOutline, null) },
+                                        onClick = {
+                                            menuOpen = false
+                                            renameText = list.name
+                                            renameTarget = list
+                                        }
+                                    )
                                     DropdownMenuItem(
                                         text = { Text("Export to file") },
                                         leadingIcon = { Icon(Icons.Default.FileDownload, null) },
@@ -207,6 +222,38 @@ fun ListLibraryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { deleteTarget = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    renameTarget?.let { target ->
+        val focusRequester = remember { FocusRequester() }
+        AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            title = { Text("Rename list") },
+            text = {
+                OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    label = { Text("List name") },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
+                )
+                LaunchedEffect(Unit) { focusRequester.requestFocus() }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.rename(target.id, renameText)
+                        renameTarget = null
+                    },
+                    enabled = renameText.isNotBlank()
+                ) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameTarget = null }) { Text("Cancel") }
             }
         )
     }

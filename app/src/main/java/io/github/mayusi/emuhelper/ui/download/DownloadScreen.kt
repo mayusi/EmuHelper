@@ -10,11 +10,14 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -94,6 +97,7 @@ class DownloadViewModel @Inject constructor(
 fun DownloadScreen(
     onDone: () -> Unit,
     onBack: () -> Unit,
+    onHistory: () -> Unit = {},
     viewModel: DownloadViewModel = hiltViewModel()
 ) {
     val games by viewModel.queuedGames.collectAsState()
@@ -154,7 +158,10 @@ fun DownloadScreen(
                 actions = {
                     if (isRunning) {
                         IconButton(onClick = { if (isPaused) viewModel.resumeAll() else viewModel.pauseAll() }) {
-                            Icon(if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause, null)
+                            Icon(
+                                if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                                contentDescription = if (isPaused) "Resume downloads" else "Pause downloads"
+                            )
                         }
                         IconButton(onClick = { viewModel.cancelAll() }) {
                             Icon(Icons.Default.Close, "Cancel")
@@ -162,6 +169,9 @@ fun DownloadScreen(
                     }
                     IconButton(onClick = { folderPicker.launch(null) }) {
                         Icon(Icons.Default.Folder, "Choose folder")
+                    }
+                    IconButton(onClick = onHistory) {
+                        Icon(Icons.Default.History, "Download history")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
@@ -275,6 +285,9 @@ fun DownloadScreen(
                 contentPadding = PaddingValues(horizontal = Dimens.ScreenHorizontal, vertical = Dimens.ItemGap)
             ) {
                 itemsIndexed(tasks, key = { _, t -> t.id }) { _, task ->
+                    val statusLabel = remember(task.status) {
+                        task.status.name.lowercase().replace('_', ' ')
+                    }
                     val statusColor = when (task.status) {
                         DownloadStatus.DONE -> MaterialTheme.colorScheme.tertiary
                         DownloadStatus.DOWNLOADING -> MaterialTheme.colorScheme.primary
@@ -292,11 +305,15 @@ fun DownloadScreen(
                     }
 
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().animateItem(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = MaterialTheme.shapes.small
                     ) {
-                        Column(modifier = Modifier.fillMaxWidth().padding(Dimens.CardPadding + 2.dp)) {
+                        Column(modifier = Modifier
+                            .fillMaxWidth()
+                            .animateContentSize()
+                            .padding(Dimens.CardPadding + 2.dp)
+                        ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(icon, null, modifier = Modifier.size(20.dp), tint = statusColor)
                                 Spacer(Modifier.width(Dimens.ItemGap))
@@ -357,11 +374,14 @@ fun DownloadScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
-                                    task.status.name.lowercase().replace('_', ' '),
+                                    statusLabel,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = statusColor
                                 )
-                                if (task.status == DownloadStatus.FAILED || task.status == DownloadStatus.CANCELLED) {
+                                AnimatedVisibility(
+                                    visible = task.status == DownloadStatus.FAILED || task.status == DownloadStatus.CANCELLED,
+                                    enter = fadeIn() + expandVertically()
+                                ) {
                                     TextButton(onClick = { viewModel.retryTask(task) }) {
                                         Text("Retry", style = MaterialTheme.typography.labelSmall)
                                     }

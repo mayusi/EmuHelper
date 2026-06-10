@@ -1,7 +1,6 @@
 package io.github.mayusi.emuhelper.ui.onboarding
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,7 +20,7 @@ fun SkipExplainerScreen(
                 .fillMaxWidth(0.92f)
                 .widthIn(max = 560.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(20.dp)
+            shape = MaterialTheme.shapes.extraLarge
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
@@ -48,7 +47,7 @@ fun SkipExplainerScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(Dimens.ButtonMinHeight),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.small,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
                     Text("Sign in", style = MaterialTheme.typography.titleMedium)
@@ -61,7 +60,7 @@ fun SkipExplainerScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(Dimens.ButtonMinHeight),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = MaterialTheme.shapes.small
                 ) {
                     Text("Skip anyway", style = MaterialTheme.typography.titleMedium)
                 }

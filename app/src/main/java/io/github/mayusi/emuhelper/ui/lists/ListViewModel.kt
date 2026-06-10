@@ -54,6 +54,12 @@ class ListViewModel @Inject constructor(
         viewModelScope.launch { store.delete(id) }
     }
 
+    fun rename(id: String, newName: String) {
+        val trimmed = newName.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch { store.rename(id, trimmed) }
+    }
+
     /** Load a saved list into the download queue (all games), then the preview screen filters. */
     fun loadForDownload(list: GameList) {
         scanState.downloadQueue.value = list.games

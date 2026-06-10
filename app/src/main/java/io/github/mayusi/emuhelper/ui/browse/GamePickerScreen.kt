@@ -9,11 +9,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -164,7 +164,7 @@ fun GamePickerScreen(
                         },
                         enabled = totalSel > 0,
                         modifier = Modifier.height(Dimens.ButtonMinHeight),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = MaterialTheme.shapes.small,
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) { Text(if (instantInstall) "Download" else "Save list", style = MaterialTheme.typography.titleMedium) }
                 }
@@ -191,7 +191,7 @@ fun GamePickerScreen(
                     Surface(
                         modifier = Modifier.fillMaxWidth().clickable { currentConsole = console },
                         color = backgroundColor,
-                        shape = RoundedCornerShape(8.dp)
+                        shape = MaterialTheme.shapes.extraSmall
                     ) {
                         Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
                             Text(Catalog.CONSOLES[console]?.display ?: console, style = MaterialTheme.typography.bodyMedium, color = if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
@@ -206,7 +206,7 @@ fun GamePickerScreen(
                     value = searchQuery, onValueChange = { searchQuery = it },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = Dimens.ScreenHorizontal, vertical = 6.dp),
                     placeholder = { Text("Search...") }, singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
+                    shape = MaterialTheme.shapes.extraSmall,
                     colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant, unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant)
                 )
 
@@ -305,11 +305,43 @@ fun GamePickerScreen(
                 }
 
                 if (filtered.isEmpty()) {
-                    Box(Modifier.fillMaxWidth().padding(vertical = 32.dp, horizontal = 24.dp), contentAlignment = Alignment.Center) {
-                        Text("No items match these filters", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Box(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = Dimens.Large, vertical = Dimens.XLarge),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.SearchOff,
+                                contentDescription = null,
+                                modifier = Modifier.size(Dimens.IconLarge + 24.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                            Spacer(Modifier.height(Dimens.ItemGap))
+                            Text(
+                                "No items match",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "Try removing a filter",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(Modifier.height(Dimens.SectionGap))
+                            TextButton(onClick = {
+                                regionFilter = emptySet()
+                                sizeBucket = SizeBucket.ANY
+                                selFilter = SelFilter.ALL
+                                searchQuery = ""
+                            }) {
+                                Text("Clear filters")
+                            }
+                        }
                     }
-                }
-
+                } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -324,9 +356,9 @@ fun GamePickerScreen(
                             animationSpec = tween(durationMillis = 150)
                         )
                         Surface(
-                            modifier = Modifier.fillMaxWidth().clickable { viewModel.toggleGame(currentConsole, file.filename) },
+                            modifier = Modifier.fillMaxWidth().animateItem().clickable { viewModel.toggleGame(currentConsole, file.filename) },
                             color = backgroundColor,
-                            shape = RoundedCornerShape(10.dp)
+                            shape = MaterialTheme.shapes.small
                         ) {
                             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = sel, onCheckedChange = { viewModel.toggleGame(currentConsole, file.filename) }, modifier = Modifier.padding(end = 6.dp))
@@ -339,6 +371,7 @@ fun GamePickerScreen(
                         }
                     }
                 }
+                } // end else (filtered.isEmpty)
             }
         }
     }

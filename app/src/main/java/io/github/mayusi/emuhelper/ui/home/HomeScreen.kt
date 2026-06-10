@@ -8,15 +8,19 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.NewReleases
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -33,13 +37,16 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.mayusi.emuhelper.data.source.RemoteSource
 import io.github.mayusi.emuhelper.data.source.LoginResult
+import io.github.mayusi.emuhelper.data.source.UpdateChecker
 import io.github.mayusi.emuhelper.data.storage.AuthStore
 import io.github.mayusi.emuhelper.data.storage.GameListStore
 import io.github.mayusi.emuhelper.data.storage.SettingsStore
 import io.github.mayusi.emuhelper.di.PersistentCookieJar
 import io.github.mayusi.emuhelper.ui.common.Dimens
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
@@ -52,10 +59,14 @@ class HomeViewModel @Inject constructor(
     private val settings: SettingsStore,
     private val authStore: AuthStore,
     private val source: RemoteSource,
-    private val cookieJar: PersistentCookieJar
+    private val cookieJar: PersistentCookieJar,
+    private val updateChecker: UpdateChecker
 ) : ViewModel() {
 
     data class HomeUi(val listCount: Int = 0, val loggedIn: Boolean = false, val email: String = "")
+
+    private val _updateInfo = MutableStateFlow<UpdateChecker.UpdateInfo?>(null)
+    val updateInfo: StateFlow<UpdateChecker.UpdateInfo?> = _updateInfo.asStateFlow()
 
     val ui: StateFlow<HomeUi> = combine(
         listStore.lists,
@@ -87,6 +98,23 @@ class HomeViewModel @Inject constructor(
             }
             // login() populates the cookie jar, which flips cookieJar.loggedIn reactively.
         }
+
+        // Throttled update check: only run if >24h since last check.
+        viewModelScope.launch {
+            val lastCheck = settings.lastUpdateCheck.first()
+            val now = System.currentTimeMillis()
+            val twentyFourHours = 24L * 60 * 60 * 1000
+            if (now - lastCheck > twentyFourHours) {
+                settings.setLastUpdateCheck(now)
+                val currentVersion = try {
+                    io.github.mayusi.emuhelper.BuildConfig.VERSION_NAME
+                } catch (e: Exception) { "" }
+                val info = updateChecker.check(currentVersion)
+                if (info != null && info.isNewer) {
+                    _updateInfo.value = info
+                }
+            }
+        }
     }
 
     /** No-op kept for callers; login state is now reactive via cookieJar.loggedIn. */
@@ -114,11 +142,14 @@ fun HomeScreen(
     onSettings: () -> Unit = {},
     onOpenDownloads: () -> Unit = {},
     onEmulatorSetup: () -> Unit = {},
+    onAbout: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val ui by viewModel.ui.collectAsState()
+    val updateInfo by viewModel.updateInfo.collectAsState()
     val context = LocalContext.current
     var menuOpen by remember { mutableStateOf(false) }
+    var updateBannerDismissed by remember { mutableStateOf(false) }
 
     // Re-check login whenever Home becomes the active screen again.
     LaunchedEffect(Unit) { viewModel.refreshLogin() }
@@ -144,6 +175,10 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("EmuHelper", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary) },
                 actions = {
+                    // Settings gear — one tap, always visible
+                    IconButton(onClick = onSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    }
                     IconButton(onClick = { menuOpen = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = "Menu")
                     }
@@ -172,14 +207,14 @@ fun HomeScreen(
                             onClick = { menuOpen = false; folderPicker.launch(null) }
                         )
                         DropdownMenuItem(
-                            text = { Text("Settings") },
-                            leadingIcon = { Icon(Icons.Default.Settings, null) },
-                            onClick = { menuOpen = false; onSettings() }
-                        )
-                        DropdownMenuItem(
                             text = { Text("Emulator setup") },
                             leadingIcon = { Icon(Icons.Default.PhoneAndroid, null) },
                             onClick = { menuOpen = false; onEmulatorSetup() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("About") },
+                            leadingIcon = { Icon(Icons.Default.Info, null) },
+                            onClick = { menuOpen = false; onAbout() }
                         )
                     }
                 },
@@ -192,14 +227,70 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .padding(horizontal = Dimens.ScreenHorizontal, vertical = Dimens.SectionGap),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(Icons.Default.Download, null, modifier = Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary)
+            Icon(Icons.Default.Download, null, modifier = Modifier.size(Dimens.IconLarge), tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(6.dp))
             Text("Download Manager", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(12.dp))
+
+            // Update available banner
+            val info = updateInfo
+            if (info != null && info.isNewer && !updateBannerDismissed) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = Dimens.CardPadding, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.NewReleases,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(Dimens.IconSmall + 4.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Update available: ${info.latestTag}",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                "Tap to view release",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
+                        TextButton(
+                            onClick = {
+                                context.startActivity(
+                                    android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(info.htmlUrl))
+                                )
+                            }
+                        ) {
+                            Text("View", color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        }
+                        IconButton(
+                            onClick = { updateBannerDismissed = true },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Dismiss",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
 
             // Two primary actions side by side (compact).
             Row(
@@ -227,7 +318,7 @@ fun HomeScreen(
             Button(
                 onClick = onDownload,
                 modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp).height(Dimens.ButtonMinHeight),
-                shape = RoundedCornerShape(14.dp),
+                shape = MaterialTheme.shapes.medium,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)
             ) {
                 Icon(Icons.Default.Download, null, modifier = Modifier.size(20.dp))
@@ -238,16 +329,33 @@ fun HomeScreen(
                 )
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(Dimens.Large))
+            // List count — static info line
             Text(
-                buildString {
-                    append(if (ui.listCount == 1) "1 saved list" else "${ui.listCount} saved lists")
-                    append("  ·  ")
-                    append(if (ui.loggedIn) (ui.email.takeIf { it.isNotBlank() }?.let { "signed in as $it" } ?: "signed in") else "not signed in")
-                },
-                style = MaterialTheme.typography.labelSmall,
+                if (ui.listCount == 1) "1 saved list" else "${ui.listCount} saved lists",
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(4.dp))
+            // Login status as a tappable chip — more legible and actionable
+            SuggestionChip(
+                onClick = { if (ui.loggedIn) viewModel.logout() else onSignIn() },
+                label = {
+                    Text(
+                        if (ui.loggedIn)
+                            ui.email.takeIf { it.isNotBlank() }?.let { "Signed in as $it" } ?: "Signed in"
+                        else "Not signed in — tap to sign in",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                },
+                icon = {
+                    Icon(
+                        if (ui.loggedIn) Icons.Default.AccountCircle else Icons.Default.Lock,
+                        contentDescription = null,
+                        modifier = Modifier.size(Dimens.IconSmall)
+                    )
+                }
             )
             Spacer(Modifier.height(4.dp))
             val appVersion = remember {
@@ -272,9 +380,9 @@ private fun HubTile(modifier: Modifier = Modifier, icon: ImageVector, title: Str
         onClick = onClick,
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-        shape = RoundedCornerShape(16.dp)
+        shape = MaterialTheme.shapes.medium
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(Dimens.CardPadding)) {
             Icon(icon, null, modifier = Modifier.size(28.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
             Spacer(Modifier.height(10.dp))
             Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)

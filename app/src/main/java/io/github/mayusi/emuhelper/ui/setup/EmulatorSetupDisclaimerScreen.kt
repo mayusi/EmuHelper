@@ -2,7 +2,6 @@ package io.github.mayusi.emuhelper.ui.setup
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
@@ -28,7 +27,7 @@ fun EmulatorSetupDisclaimerScreen(
                 .fillMaxWidth(0.92f)
                 .widthIn(max = 560.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(20.dp)
+            shape = MaterialTheme.shapes.extraLarge
         ) {
             Column(
                 modifier = Modifier
@@ -117,7 +116,7 @@ fun EmulatorSetupDisclaimerScreen(
                 Button(
                     onClick = onAgree,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = MaterialTheme.shapes.small
                 ) {
                     Text("I understand — continue")
                 }
@@ -125,7 +124,7 @@ fun EmulatorSetupDisclaimerScreen(
                 OutlinedButton(
                     onClick = onDisagree,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = MaterialTheme.shapes.small
                 ) {
                     Text("I don’t agree — go back")
                 }

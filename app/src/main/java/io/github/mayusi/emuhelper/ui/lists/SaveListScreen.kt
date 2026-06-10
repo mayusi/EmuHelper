@@ -4,7 +4,6 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -83,7 +82,7 @@ fun SaveListScreen(
                 placeholder = { Text("e.g. PS1 RPGs") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp)
+                shape = MaterialTheme.shapes.extraSmall
             )
 
             Spacer(Modifier.height(24.dp))
@@ -96,7 +95,7 @@ fun SaveListScreen(
                 },
                 enabled = games.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth().height(Dimens.ButtonMinHeight),
-                shape = RoundedCornerShape(12.dp),
+                shape = MaterialTheme.shapes.small,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) { Text("Save list", style = MaterialTheme.typography.titleMedium) }
 
@@ -114,7 +113,7 @@ fun SaveListScreen(
                 },
                 enabled = games.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth().height(Dimens.ButtonMinHeight),
-                shape = RoundedCornerShape(12.dp)
+                shape = MaterialTheme.shapes.small
             ) { Text("Save & export to file") }
 
             Spacer(Modifier.height(12.dp))

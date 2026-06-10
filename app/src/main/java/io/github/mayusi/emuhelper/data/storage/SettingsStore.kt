@@ -7,9 +7,12 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
+import io.github.mayusi.emuhelper.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -29,6 +32,10 @@ class SettingsStore @Inject constructor(@ApplicationContext private val context:
         private val KEY_EXTRACT = booleanPreferencesKey("extract_archives")
         private val KEY_SEEN_SETUP_DISCLAIMER = booleanPreferencesKey("seen_setup_disclaimer")
         private val KEY_SETUP_STAGING_FOLDER = stringPreferencesKey("setup_staging_folder_uri")
+        val KEY_LAST_UPDATE_CHECK = longPreferencesKey("last_update_check_ts")
+        val KEY_LAST_CONSOLES = stringSetPreferencesKey("last_selected_consoles")
+        // ---- Theme mode (Feature 1) -------------------------------------------
+        private val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
     }
 
     /** Persisted SAF URI for the user-chosen download folder, or null if using app-private dir. */
@@ -91,5 +98,33 @@ class SettingsStore @Inject constructor(@ApplicationContext private val context:
             if (uri != null) it[KEY_SETUP_STAGING_FOLDER] = uri.toString()
             else it.remove(KEY_SETUP_STAGING_FOLDER)
         }
+    }
+
+    // ---- Update check timestamp -------------------------------------------
+
+    val lastUpdateCheck: Flow<Long> = context.settingsStore.data.map { it[KEY_LAST_UPDATE_CHECK] ?: 0L }
+
+    suspend fun setLastUpdateCheck(timestamp: Long) {
+        context.settingsStore.edit { it[KEY_LAST_UPDATE_CHECK] = timestamp }
+    }
+
+    // ---- Last selected consoles -------------------------------------------
+
+    val lastSelectedConsoles: Flow<Set<String>> = context.settingsStore.data.map { it[KEY_LAST_CONSOLES] ?: emptySet() }
+
+    suspend fun setLastSelectedConsoles(consoles: Set<String>) {
+        context.settingsStore.edit { it[KEY_LAST_CONSOLES] = consoles }
+    }
+
+    // ---- Theme mode (Feature 1) -------------------------------------------
+
+    val themeMode: Flow<ThemeMode> = context.settingsStore.data.map { prefs ->
+        prefs[KEY_THEME_MODE]?.let { s ->
+            try { ThemeMode.valueOf(s) } catch (_: IllegalArgumentException) { ThemeMode.SYSTEM }
+        } ?: ThemeMode.SYSTEM
+    }
+
+    suspend fun setThemeMode(mode: ThemeMode) {
+        context.settingsStore.edit { it[KEY_THEME_MODE] = mode.name }
     }
 }

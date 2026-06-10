@@ -4,7 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -12,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import io.github.mayusi.emuhelper.data.config.Catalog
 import io.github.mayusi.emuhelper.ui.common.Dimens
 
@@ -19,10 +19,21 @@ import io.github.mayusi.emuhelper.ui.common.Dimens
 @Composable
 fun ConsoleSelectScreen(
     onStartScan: (Set<String>) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    viewModel: ConsoleSelectViewModel = hiltViewModel()
 ) {
     val consoles = Catalog.DISPLAY_ORDER.filter { it in Catalog.IA_LINKS }
     val selected = remember { mutableStateMapOf<String, Boolean>().also { map -> consoles.forEach { map[it] = false } } }
+    val savedConsoles by viewModel.lastSelectedConsoles.collectAsState()
+
+    // Pre-tick consoles from the saved set on first composition.
+    LaunchedEffect(savedConsoles) {
+        if (savedConsoles.isNotEmpty()) {
+            consoles.forEach { console ->
+                selected[console] = console in savedConsoles
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -45,10 +56,14 @@ fun ConsoleSelectScreen(
                     }
                     val selCount = selected.count { it.value }
                     Button(
-                        onClick = { val picked = selected.filter { it.value }.keys; onStartScan(picked) },
+                        onClick = {
+                            val picked = selected.filter { it.value }.keys.toSet()
+                            viewModel.saveSelectedConsoles(picked)
+                            onStartScan(picked)
+                        },
                         enabled = selCount > 0,
                         modifier = Modifier.height(Dimens.ButtonMinHeight),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = MaterialTheme.shapes.small,
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Text("Scan $selCount Console${if (selCount != 1) "s" else ""}", style = MaterialTheme.typography.titleMedium)
@@ -76,9 +91,9 @@ fun ConsoleSelectScreen(
                 val checked = selected[console] ?: true
 
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().animateItem(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(10.dp)
+                    shape = MaterialTheme.shapes.small
                 ) {
                     Row(
                         modifier = Modifier
@@ -91,7 +106,8 @@ fun ConsoleSelectScreen(
                             Text(info.display, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                             Text("${info.emulator}  ·  $count sources", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Checkbox(checked = checked, onCheckedChange = null)
+                        // Pass a real onCheckedChange so accessibility services don't read this as disabled
+                        Checkbox(checked = checked, onCheckedChange = { selected[console] = it })
                     }
                 }
             }

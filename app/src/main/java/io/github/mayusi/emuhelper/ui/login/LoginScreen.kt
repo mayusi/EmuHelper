@@ -1,9 +1,6 @@
 package io.github.mayusi.emuhelper.ui.login
 
-import android.content.ClipboardManager
-import android.content.Context
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
@@ -13,7 +10,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -103,7 +99,6 @@ fun LoginScreen(onLoggedIn: () -> Unit, onSkip: () -> Unit = onLoggedIn, viewMod
     var password by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
     var rememberMe by remember(state.rememberMe) { mutableStateOf(state.rememberMe) }
-    val context = LocalContext.current
 
     Box(
         modifier = Modifier.fillMaxSize().imePadding(),
@@ -112,7 +107,7 @@ fun LoginScreen(onLoggedIn: () -> Unit, onSkip: () -> Unit = onLoggedIn, viewMod
         Card(
             modifier = Modifier.fillMaxWidth(0.9f).widthIn(max = 460.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(16.dp)
+            shape = MaterialTheme.shapes.extraLarge
         ) {
             Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.Lock, null, modifier = Modifier.size(44.dp), tint = MaterialTheme.colorScheme.primary)
@@ -129,7 +124,7 @@ fun LoginScreen(onLoggedIn: () -> Unit, onSkip: () -> Unit = onLoggedIn, viewMod
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
-                    shape = RoundedCornerShape(10.dp)
+                    shape = MaterialTheme.shapes.extraSmall
                 )
                 Spacer(Modifier.height(10.dp))
 
@@ -140,24 +135,15 @@ fun LoginScreen(onLoggedIn: () -> Unit, onSkip: () -> Unit = onLoggedIn, viewMod
                     singleLine = true,
                     visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
-                        Row {
-                            IconButton(onClick = {
-                                val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                                val primary = clip?.primaryClip
-                                val text = if (primary != null && primary.itemCount > 0) {
-                                    primary.getItemAt(0)?.text?.toString().orEmpty()
-                                } else ""
-                                if (text.isNotBlank()) { password = text }
-                            }) {
-                                Text("Paste", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                            }
-                            IconButton(onClick = { showPassword = !showPassword }) {
-                                Icon(if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility, null)
-                            }
+                        IconButton(onClick = { showPassword = !showPassword }) {
+                            Icon(
+                                if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = if (showPassword) "Hide password" else "Show password"
+                            )
                         }
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
-                    shape = RoundedCornerShape(10.dp)
+                    shape = MaterialTheme.shapes.extraSmall
                 )
 
                 Row(
@@ -178,7 +164,7 @@ fun LoginScreen(onLoggedIn: () -> Unit, onSkip: () -> Unit = onLoggedIn, viewMod
                     onClick = { viewModel.login(email, password, rememberMe) },
                     enabled = !state.isLoading && email.isNotBlank() && password.isNotBlank(),
                     modifier = Modifier.fillMaxWidth().height(Dimens.ButtonMinHeight),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = MaterialTheme.shapes.small,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
                     if (state.isLoading) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
