@@ -4,6 +4,23 @@ All notable changes to EmuHelper are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project follows a
 semantic-style versioning scheme while in alpha.
 
+## [0.2.0] — 2026-06-11
+
+### Performance
+- Faster, smoother downloads: throttled progress aggregation, cached archive
+  metadata (no more refetching the same listing per file), signal-based pause
+  (instant resume), buffer reuse, and lighter UI hot paths.
+
+### Added
+- Live download progress in the notification (count, %, speed).
+- Tappable history entries — open the download folder or copy a filename.
+- Cancel/retry in the file-staging flow and cancel for the speed test.
+- First unit-test suite (81 tests) for the project's core logic.
+
+### Changed
+- Clearer sign-in prompt and empty-state guidance on the home screen.
+- A scan that finds nothing now offers go-back and retry instead of a dead end.
+
 ## [0.1.9] — 2026-06-11
 
 ### Security
