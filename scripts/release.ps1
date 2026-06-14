@@ -37,7 +37,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-# ─── Helpers ──────────────────────────────────────────────────────────────────
+# --- Helpers ------------------------------------------------------------------
 
 function Write-Step([string]$msg) {
     Write-Host "`n==> $msg" -ForegroundColor Cyan
@@ -103,12 +103,12 @@ function Bump-Version([string]$buildGradle, [string]$newName) {
     return $newCode
 }
 
-# ─── Main ─────────────────────────────────────────────────────────────────────
+# --- Main ---------------------------------------------------------------------
 
 Write-Host ""
-Write-Host "┌──────────────────────────────────────────┐" -ForegroundColor Magenta
-Write-Host "│   EmuHelper Release Script  v$Version   │" -ForegroundColor Magenta
-Write-Host "└──────────────────────────────────────────┘" -ForegroundColor Magenta
+Write-Host "+------------------------------------------+" -ForegroundColor Magenta
+Write-Host "|   EmuHelper Release Script  v$Version   |" -ForegroundColor Magenta
+Write-Host "+------------------------------------------+" -ForegroundColor Magenta
 
 # 1. Validate repo root
 Write-Step "Validating environment"
@@ -119,7 +119,7 @@ $expectedRoot = Split-Path -Parent $scriptDir
 if ($repoRoot -ne $expectedRoot) {
     Write-Warn "Detected repo root:  $repoRoot"
     Write-Warn "Script parent dir:   $expectedRoot"
-    Write-Warn "Running from unexpected location — continuing anyway."
+    Write-Warn "Running from unexpected location -- continuing anyway."
 } else {
     Write-Ok "Repo root: $repoRoot"
 }
@@ -217,23 +217,17 @@ Write-Step "Generating release notes"
 $rnFile = Join-Path $repoRoot "_relnotes_v$Version.md"
 
 $rnContent = @"
-<p align="center"><img src="docs/logo.png" alt="EmuHelper logo" width="120" height="120"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/mayusi/EmuHelper/main/docs/logo.png" alt="EmuHelper logo" width="110" height="110"></p>
 
-<h1 align="center">EmuHelper v$Version</h1>
+## EmuHelper v$Version
 
-<p align="center"><strong>A configurable Android client for browsing and retrieving files from user-supplied web archive endpoints.</strong></p>
-
-<p align="center">
-  <a href="https://github.com/mayusi/EmuHelper/releases"><img alt="Release" src="https://img.shields.io/github/v/release/mayusi/EmuHelper?include_prereleases&sort=semver&label=release"></a>
-  <a href="../../LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
-  <img alt="Min Android 10 (API 29)" src="https://img.shields.io/badge/Android-10%2B%20(API%2029)-3DDC84?logo=android&logoColor=white">
-</p>
+> **Status:** Early alpha -- expect rough edges.
 
 ---
 
 ## What changed
 
-<!-- Edit this section before publishing — remove items that don't apply. -->
+<!-- Edit this section before publishing -- remove items that don't apply. -->
 
 $commitLog
 
@@ -245,26 +239,26 @@ $commitLog
 2. On your device, allow installs from unknown sources for your browser / file manager when prompted.
 3. Open the APK to install. Requires **Android 10 (API 29)** or newer.
 
-> Debug builds install as a separate `.debug` package and will not conflict with any future release build.
+> Debug builds install as a separate ```.debug``` package and will not conflict with any future release build.
 
 ---
 
-## SHA-256
+## APK integrity
 
-Verify the download before installing:
+**APK integrity** - SHA-256:
+``````
+$sha256
+``````
 
-```
-SHA-256: $sha256
-```
-
-The in-app updater also checks this hash automatically before applying the update.
+The in-app updater checks this hash automatically before applying the update.
 
 ---
 
-*EmuHelper is open-source under the [MIT License](../../LICENSE).*
+*Built by mayusi -- EmuHelper is open-source under the [MIT License](../../LICENSE).*
 "@
 
-Set-Content -Path $rnFile -Value $rnContent -Encoding UTF8
+# Write release notes as UTF-8 without BOM so the in-app updater and GitHub read it correctly
+[System.IO.File]::WriteAllText($rnFile, $rnContent, [System.Text.UTF8Encoding]::new($false))
 Write-Ok "Release notes written to: $rnFile"
 
 # 11. Print summary and gh command
@@ -272,7 +266,7 @@ $apkSize = (Get-Item $apkDest).Length
 $apkSizeMb = [math]::Round($apkSize / 1MB, 1)
 
 Write-Host ""
-Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Magenta
+Write-Host "================================================================" -ForegroundColor Magenta
 Write-Host "  Release artefacts ready" -ForegroundColor Green
 Write-Host ""
 Write-Host "  APK  : EmuHelper-v$Version.apk  ($apkSizeMb MB)"
@@ -286,6 +280,6 @@ Write-Host "    --title `"v$Version`" ``" -ForegroundColor White
 Write-Host "    --notes-file `"_relnotes_v$Version.md`" ``" -ForegroundColor White
 Write-Host "    `"EmuHelper-v$Version.apk`"" -ForegroundColor White
 Write-Host ""
-Write-Host "  This script does NOT publish — run the command above when ready." -ForegroundColor Yellow
-Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Magenta
+Write-Host "  This script does NOT publish -- run the command above when ready." -ForegroundColor Yellow
+Write-Host "================================================================" -ForegroundColor Magenta
 Write-Host ""
