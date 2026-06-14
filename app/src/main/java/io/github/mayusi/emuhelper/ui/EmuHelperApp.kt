@@ -37,7 +37,9 @@ import io.github.mayusi.emuhelper.ui.download.DownloadScreen
 import io.github.mayusi.emuhelper.ui.home.HomeScreen
 import io.github.mayusi.emuhelper.ui.lists.ListLibraryScreen
 import io.github.mayusi.emuhelper.ui.lists.SaveListScreen
+import io.github.mayusi.emuhelper.ui.login.CreateAccountGuideScreen
 import io.github.mayusi.emuhelper.ui.login.LoginScreen
+import io.github.mayusi.emuhelper.ui.login.SignupWebViewScreen
 import io.github.mayusi.emuhelper.ui.onboarding.CoachMarksScreen
 import io.github.mayusi.emuhelper.ui.onboarding.CoachViewModel
 import io.github.mayusi.emuhelper.ui.onboarding.OnboardingScreen
@@ -78,6 +80,9 @@ object Routes {
     const val HISTORY = "history"
     const val SOURCE_HEALTH = "source_health"
     const val ERROR_LOG = "error_log"
+
+    const val CREATE_ACCOUNT_GUIDE = "create_account_guide"
+    const val SIGNUP_WEBVIEW = "signup_webview"
 
     const val EMULATOR_SETUP_DISCLAIMER    = "emulator_setup_disclaimer"
     const val EMULATOR_SETUP_PICK_EMULATOR = "emulator_setup_pick_emulator"
@@ -239,7 +244,8 @@ fun EmuHelperApp(modifier: Modifier = Modifier) {
                                 popUpTo(Routes.LOGIN_ROUTE) { inclusive = true }
                             }
                         }
-                    }
+                    },
+                    onCreateAccount = { navController.navigate(Routes.CREATE_ACCOUNT_GUIDE) }
                 )
             }
 
@@ -247,6 +253,21 @@ fun EmuHelperApp(modifier: Modifier = Modifier) {
                 SkipExplainerScreen(
                     onSignInInstead = { navController.popBackStack() },
                     onSkipAnyway = { navController.navigate(Routes.COACH) { popUpTo(Routes.SKIP_EXPLAINER) { inclusive = true } } }
+                )
+            }
+
+            composable(Routes.CREATE_ACCOUNT_GUIDE) {
+                CreateAccountGuideScreen(
+                    onContinue = { navController.navigate(Routes.SIGNUP_WEBVIEW) },
+                    onOpenInBrowser = { /* openUrl called inside the screen via LocalContext */ },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(Routes.SIGNUP_WEBVIEW) {
+                SignupWebViewScreen(
+                    onDone = { navController.popBackStack(Routes.LOGIN_ROUTE, inclusive = false) },
+                    onOpenInBrowser = { /* openUrl called inside the screen via LocalContext */ }
                 )
             }
 

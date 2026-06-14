@@ -91,7 +91,12 @@ class LoginViewModel @Inject constructor(
 }
 
 @Composable
-fun LoginScreen(onLoggedIn: () -> Unit, onSkip: () -> Unit = onLoggedIn, viewModel: LoginViewModel = hiltViewModel()) {
+fun LoginScreen(
+    onLoggedIn: () -> Unit,
+    onSkip: () -> Unit = onLoggedIn,
+    onCreateAccount: () -> Unit = {},
+    viewModel: LoginViewModel = hiltViewModel()
+) {
     val state by viewModel.state.collectAsState()
     LaunchedEffect(state.isLoggedIn) { if (state.isLoggedIn) onLoggedIn() }
 
@@ -173,6 +178,13 @@ fun LoginScreen(onLoggedIn: () -> Unit, onSkip: () -> Unit = onLoggedIn, viewMod
                 Spacer(Modifier.height(8.dp))
                 TextButton(onClick = onSkip) {
                     Text("Skip login (public access)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                TextButton(onClick = onCreateAccount) {
+                    Text(
+                        "Don't have an account? Create one",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
         }
