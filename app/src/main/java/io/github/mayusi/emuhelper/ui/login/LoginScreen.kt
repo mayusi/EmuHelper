@@ -1,6 +1,8 @@
 package io.github.mayusi.emuhelper.ui.login
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
@@ -105,12 +107,19 @@ fun LoginScreen(
     var showPassword by remember { mutableStateOf(false) }
     var rememberMe by remember(state.rememberMe) { mutableStateOf(state.rememberMe) }
 
-    Box(
-        modifier = Modifier.fillMaxSize().imePadding(),
-        contentAlignment = Alignment.Center
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Card(
-            modifier = Modifier.fillMaxWidth(0.9f).widthIn(max = 460.dp),
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .widthIn(max = 460.dp)
+                .padding(vertical = 16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = MaterialTheme.shapes.extraLarge
         ) {

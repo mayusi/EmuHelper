@@ -2,6 +2,8 @@ package io.github.mayusi.emuhelper.ui.health
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -134,21 +136,24 @@ fun SourceHealthScreen(
 private fun IdleContent(onStart: () -> Unit) {
     Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 40.dp),
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.Center
     ) {
+        Spacer(Modifier.height(16.dp))
         Icon(
             Icons.Default.NetworkCheck,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(64.dp)
         )
+        Spacer(Modifier.height(16.dp))
         Text(
             "Source Endpoint Check",
             style = MaterialTheme.typography.titleMedium
         )
+        Spacer(Modifier.height(16.dp))
         Text(
             "Pings each configured source endpoint with a HEAD request " +
                     "and reports which are reachable (2xx/3xx) vs unreachable.",
@@ -156,7 +161,7 @@ private fun IdleContent(onStart: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 8.dp)
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(24.dp))
         Button(
             onClick = onStart,
             modifier = Modifier
@@ -167,6 +172,7 @@ private fun IdleContent(onStart: () -> Unit) {
             Spacer(Modifier.width(8.dp))
             Text("Check sources")
         }
+        Spacer(Modifier.height(16.dp))
     }
 }
 
@@ -174,27 +180,32 @@ private fun IdleContent(onStart: () -> Unit) {
 private fun RunningContent(done: Int, total: Int, onCancel: () -> Unit) {
     Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 48.dp),
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        verticalArrangement = Arrangement.Center
     ) {
+        Spacer(Modifier.height(20.dp))
         CircularProgressIndicator(modifier = Modifier.size(56.dp))
+        Spacer(Modifier.height(20.dp))
         Text(
             if (total > 0) "Checking $done / $total endpoints…" else "Starting…",
             style = MaterialTheme.typography.bodyMedium
         )
         if (total > 0) {
+            Spacer(Modifier.height(20.dp))
             LinearProgressIndicator(
                 progress = { done.toFloat() / total.toFloat() },
                 modifier = Modifier.fillMaxWidth()
             )
         }
+        Spacer(Modifier.height(20.dp))
         OutlinedButton(onClick = onCancel) {
             Icon(Icons.Default.Cancel, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
             Text("Cancel")
         }
+        Spacer(Modifier.height(20.dp))
     }
 }
 

@@ -333,7 +333,7 @@ fun HomeScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = Dimens.ScreenHorizontal, vertical = Dimens.SectionGap),
-            verticalArrangement = Arrangement.Center,
+            verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(Icons.Default.Download, null, modifier = Modifier.size(Dimens.IconLarge), tint = MaterialTheme.colorScheme.primary)
