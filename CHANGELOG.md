@@ -4,6 +4,14 @@ All notable changes to EmuHelper are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project follows a
 semantic-style versioning scheme while in alpha.
 
+## [0.3.2] — 2026-06-11
+
+### Fixed
+- Landscape display on handheld devices: several screens (including sign-in)
+  centered their content and clipped the bottom off-screen with no way to
+  scroll. They now scroll so every button and link is reachable — notably the
+  "Log In", "Skip login", and "Create an account" options on the sign-in screen.
+
 ## [0.3.1] — 2026-06-11
 
 ### Added
