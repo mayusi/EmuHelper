@@ -40,10 +40,20 @@
 
 name: Release (APK + MSI)
 
+# ⚠️ MANUAL-ONLY (workflow_dispatch), NOT tag-triggered.
+#
+# This workflow builds from the COMMITTED Catalog.kt.template — i.e. an EMPTY
+# catalog (no sources) — and signs the APK with the runner's throwaway debug key
+# (a NEW random key every run). That means a CI-built APK: (a) shows NO sources,
+# and (b) can't update over a locally-installed build (signature mismatch →
+# "package conflicts with an existing package"). So CI must NOT auto-publish
+# releases. Real releases are cut LOCALLY with the real (git-ignored) Catalog.kt
+# and a STABLE signing key — see RELEASING.md.
+#
+# Kept here (manual dispatch only) purely as a build-smoke reference. Do NOT rely
+# on its artifacts for an actual release.
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
 
 # Needed so action-gh-release can create the release and upload assets.
 permissions:
