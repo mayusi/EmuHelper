@@ -49,7 +49,24 @@ testing — do not use its artifacts for a real release.
    apksigner verify --print-certs app-debug.apk   # expect 21e5163f...
    ```
 
-4. **Build the MSI** (needs WiX on PATH):
+4b. **Build the Linux artifacts** (must run ON Linux — jpackage only builds the host OS's format).
+   No Linux device needed: use **WSL2 Ubuntu on this machine** (has JDK 17; the Windows Android
+   SDK is visible over `/mnt/c`). jpackage builds a Linux `.deb`; the portable app-image is the
+   Steam Deck / SteamOS artifact (tar it).
+   ```
+   wsl.exe -d Ubuntu -- bash -lc 'export ANDROID_HOME="/mnt/c/Users/Naxte/AppData/Local/Android/Sdk"; \
+     cd /mnt/c/Users/Naxte/Downloads/b/EmuHelperApp && \
+     ./gradlew :desktopApp:packageReleaseDeb :desktopApp:createReleaseDistributable \
+       --console=plain -Dkotlin.compiler.execution.strategy=in-process'
+   # .deb  -> desktopApp/build/compose/binaries/main-release/deb/emuhelper_<ver>-1_amd64.deb
+   # image -> desktopApp/build/compose/binaries/main-release/app/EmuHelper/  (tar -czf ... EmuHelper)
+   ```
+   Notes: use `:shared:jvmTest` (NOT `:shared:allTests`) in WSL — the Android unit-test variant
+   needs the Android toolchain and fails under WSL. WSL gradle runs are slow first-time (5-12 min).
+   Verify on Linux: `:desktopApp:test` (0 failures) + `./gradlew :desktopApp:run --args="--headless"`
+   (real IA download, MD5-verified). GUI-on-screen still needs a real Deck.
+
+5. **Build the MSI** (needs WiX on PATH):
    ```
    ./gradlew.bat :desktopApp:packageReleaseMsi --console=plain -Dkotlin.compiler.execution.strategy=in-process
    # -> desktopApp/build/compose/binaries/main-release/msi/EmuHelper-<ver>.msi
