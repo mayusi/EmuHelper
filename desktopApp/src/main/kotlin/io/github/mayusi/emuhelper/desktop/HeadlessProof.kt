@@ -127,7 +127,8 @@ private suspend fun runProof(remote: RemoteSource, workDir: File): Boolean {
     cleanup(destFile)
 
     println()
-    println("PASS: real Internet Archive file downloaded on Windows via the SHARED engine — " +
+    val os = System.getProperty("os.name") ?: "this OS"
+    println("PASS: real Internet Archive file downloaded on $os via the SHARED engine — " +
             "'${target.filename}' ($actualSize bytes${if (target.md5.isNotBlank()) ", MD5 verified" else ""}).")
     return true
 }

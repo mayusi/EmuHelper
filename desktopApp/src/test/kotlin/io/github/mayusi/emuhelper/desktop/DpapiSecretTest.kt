@@ -26,17 +26,27 @@ class DpapiSecretTest {
         val stored = DpapiSecret.encrypt(secret)
         val recovered = DpapiSecret.decrypt(stored)
 
+        // The one invariant that must hold on EVERY OS: a real round-trip always recovers the
+        // original plaintext, regardless of which tier encrypt() picked underneath.
+        assertEquals(secret, recovered)
+
         if (isWindows) {
             // On the real target, DPAPI must actually be used: the stored form must NOT equal the
-            // plaintext (it's ciphertext) and must carry the marker, and it must decrypt back cleanly.
+            // plaintext (it's ciphertext) and must carry the marker.
             assertTrue(stored.startsWith("dpapi:"), "encrypted value should carry the dpapi: marker")
             assertFalse(stored.contains(secret), "ciphertext must not contain the plaintext secret")
-            assertEquals(secret, recovered)
         } else {
-            // Non-Windows: DPAPI is unavailable, so encrypt() must fall back to plaintext rather than
-            // crash, and decrypt() must hand it straight back (the migration/no-marker path).
-            assertEquals(secret, stored)
-            assertEquals(secret, recovered)
+            // Non-Windows: DPAPI is unavailable, but encrypt() is NOT limited to a plaintext fallback
+            // — it tries the Linux OS keyring first ("lsec:"), then falls back to the on-disk app-key
+            // AES-GCM tier ("lkey:"), and only degrades to plaintext (no marker) if both of those fail
+            // too (e.g. a read-only home dir). Whichever tier actually engaged, it must produce real
+            // ciphertext that doesn't leak the secret; only the last-resort plaintext fallback is
+            // exempt from that check.
+            if (stored.startsWith("lsec:") || stored.startsWith("lkey:")) {
+                assertFalse(stored.contains(secret), "ciphertext must not contain the plaintext secret")
+            } else {
+                assertEquals(secret, stored, "only the last-resort fallback should store plaintext verbatim")
+            }
         }
     }
 
@@ -60,6 +70,67 @@ class DpapiSecretTest {
         // mistaken for a real secret.
         val result = DpapiSecret.decrypt("dpapi:not-valid-base64-or-ciphertext!!")
         assertEquals("", result)
+    }
+
+    // ---- Linux Tier-2 app-key AES-GCM (pure JDK crypto — runs on ANY OS) ------------------------
+    // These exercise the "lkey:" scheme via the internal test seams, so they assert unconditionally
+    // (no isWindows guard): the crypto is portable JDK javax.crypto, no keyring/DPAPI involved.
+
+    @Test
+    fun `app-key AES-GCM round-trips and produces marked ciphertext that is not the plaintext`() {
+        val key = DpapiSecret.newRandomKeyForTest()
+        val secret = "correct horse battery staple"
+        val stored = DpapiSecret.encryptWithAppKeyForTest(secret, key)
+
+        assertTrue(stored.startsWith("lkey:"), "app-key value should carry the lkey: marker")
+        assertFalse(stored.contains(secret), "ciphertext must not contain the plaintext secret")
+        assertEquals(secret, DpapiSecret.decryptWithAppKeyForTest(stored, key))
+    }
+
+    @Test
+    fun `app-key AES-GCM uses a fresh IV per encrypt so two ciphertexts differ`() {
+        val key = DpapiSecret.newRandomKeyForTest()
+        val secret = "s3cr3t-ia-password"
+        val a = DpapiSecret.encryptWithAppKeyForTest(secret, key)
+        val b = DpapiSecret.encryptWithAppKeyForTest(secret, key)
+        assertFalse(a == b, "random IV per encrypt should make repeat ciphertexts differ")
+        assertEquals(secret, DpapiSecret.decryptWithAppKeyForTest(a, key))
+        assertEquals(secret, DpapiSecret.decryptWithAppKeyForTest(b, key))
+    }
+
+    @Test
+    fun `app-key decrypt with the wrong key does not throw and returns a safe fallback`() {
+        val key = DpapiSecret.newRandomKeyForTest()
+        val wrong = DpapiSecret.newRandomKeyForTest()
+        val stored = DpapiSecret.encryptWithAppKeyForTest("top-secret", key)
+        // GCM tag verification fails under the wrong key — must be swallowed, returning "".
+        assertEquals("", DpapiSecret.decryptWithAppKeyForTest(stored, wrong))
+    }
+
+    @Test
+    fun `app-key decrypt of a garbage lkey value does not throw and returns a safe fallback`() {
+        val key = DpapiSecret.newRandomKeyForTest()
+        assertEquals("", DpapiSecret.decryptWithAppKeyForTest("lkey:not-valid-base64!!", key))
+    }
+
+    @Test
+    fun `app-key encrypt of empty string stays empty and unmarked`() {
+        val key = DpapiSecret.newRandomKeyForTest()
+        val stored = DpapiSecret.encryptWithAppKeyForTest("", key)
+        assertEquals("", stored)
+        assertEquals("", DpapiSecret.decryptWithAppKeyForTest("", key))
+    }
+
+    // ---- decrypt() marker dispatch (no crash on foreign / unknown markers) ----------------------
+
+    @Test
+    fun `decrypt dispatches on marker and never throws on foreign or unknown markers`() {
+        // A Linux-produced blob opened on a non-Linux host (or vice-versa): unknown/undecryptable
+        // marked values must degrade to "" (forcing a clean re-login), never throw.
+        assertEquals("", DpapiSecret.decrypt("lsec:AAAAAAAAAAAAAAAAAAAA"))
+        assertEquals("", DpapiSecret.decrypt("lkey:AAAAAAAAAAAAAAAAAAAA"))
+        // An unmarked value is treated as legacy plaintext (migration path), returned verbatim.
+        assertEquals("plain-legacy-value", DpapiSecret.decrypt("plain-legacy-value"))
     }
 
     // ---- FileAuthCredentials wiring -------------------------------------------------------------

@@ -98,7 +98,8 @@ class DesktopUiHelpersTest {
 
     @Test
     fun `quarantine target lands in a Quarantine subdir of the file's parent`() {
-        val f = File("C:\\dl\\game.iso")
+        val dl = File(File("dl").absolutePath)
+        val f = File(dl, "game.iso")
         val target = quarantineTargetFor(f, exists = { false })
         assertEquals("Quarantine", target.parentFile.name)
         assertEquals("game.iso", target.name)
@@ -106,8 +107,9 @@ class DesktopUiHelpersTest {
 
     @Test
     fun `quarantine target disambiguates a name clash before the extension`() {
-        val f = File("C:\\dl\\game.iso")
-        val quarantineDir = File(File("C:\\dl"), "Quarantine")
+        val dl = File(File("dl").absolutePath)
+        val f = File(dl, "game.iso")
+        val quarantineDir = File(dl, "Quarantine")
         val taken = setOf(File(quarantineDir, "game.iso").path)
         val target = quarantineTargetFor(f, exists = { it.path in taken })
         assertEquals("game (1).iso", target.name)
@@ -115,8 +117,9 @@ class DesktopUiHelpersTest {
 
     @Test
     fun `quarantine target handles an extensionless name`() {
-        val f = File("C:\\dl\\README")
-        val quarantineDir = File(File("C:\\dl"), "Quarantine")
+        val dl = File(File("dl").absolutePath)
+        val f = File(dl, "README")
+        val quarantineDir = File(dl, "Quarantine")
         val taken = setOf(File(quarantineDir, "README").path)
         val target = quarantineTargetFor(f, exists = { it.path in taken })
         assertEquals("README (1)", target.name)

@@ -80,10 +80,18 @@ compose.desktop {
         nativeDistributions {
             // Phase 4 packaging: a real Windows .msi installer (plus Dmg/Deb kept for the other OSes,
             // harmless on Windows — they simply aren't produced there). TargetFormat.Msi REQUIRES the
-            // WiX Toolset (v3) on the build machine. WiX is NOT installed on the dev box here, so the
-            // .msi is built in CI (windows-latest, which installs WiX) — see .github/workflows/release.yml.
-            // Locally, `:desktopApp:createDistributable` (an app image + bundled JRE, no WiX needed)
-            // proves this config is valid.
+            // WiX Toolset (v3) on the build machine; jpackage otherwise only emits the HOST OS's
+            // format(s), so all packaging is done locally per-OS (no CI in this project):
+            //   - Windows: WiX installed locally -> `:desktopApp:packageReleaseMsi` produces the .msi.
+            //   - Linux: built locally under WSL2 Ubuntu / any Linux box -> `:desktopApp:packageReleaseDeb`
+            //     produces the .deb (see the `linux { }` block below), and the portable Steam Deck /
+            //     SteamOS app-image is just `:desktopApp:createReleaseDistributable`'s output directory
+            //     (desktopApp/build/compose/binaries/main-release/app/EmuHelper/) tar'd or zip'd up —
+            //     no extra Gradle target needed since it's not a jpackage TargetFormat, just the raw
+            //     app-image (bundled JRE + native libs), which already runs standalone.
+            //   - macOS: builds the .dmg locally the same way.
+            // Locally on Windows, `:desktopApp:createDistributable` (an app image + bundled JRE, no WiX
+            // needed) still proves this config is valid even though the .deb/.dmg can't be produced here.
             targetFormats(TargetFormat.Msi, TargetFormat.Dmg, TargetFormat.Deb)
 
             packageName = "EmuHelper"
@@ -140,6 +148,41 @@ compose.desktop {
 
                 // GUI app → no console window attached at launch.
                 console = false
+            }
+
+            linux {
+                // Debian package names MUST be lowercase with no spaces (dpkg-deb rejects anything
+                // else, e.g. "dpkg-deb: error ... package name 'EmuHelper' ... must consist only of
+                // lower case letters..."). The top-level `packageName = "EmuHelper"` above is fine for
+                // Windows/macOS but is NOT a legal .deb name, so it's overridden here — Compose 1.7.3's
+                // `linux { }` block exposes its own `packageName: String?` (see LinuxPlatformSettings in
+                // org.jetbrains.compose:compose-gradle-plugin:1.7.3) that overlays the shared one just
+                // for the Linux target, producing emuhelper_1.0.0-1_amd64.deb instead of an invalid name.
+                packageName = "emuhelper"
+
+                // Debian control file "Maintainer" field (shown in `dpkg -I`/software-center metadata).
+                // NOTE: Compose prepends `vendor` ("mayusi") to this value, so set ONLY the email here —
+                // otherwise the Maintainer comes out doubled ("mayusi <mayusi <noreply@github.com>>").
+                debMaintainer = "noreply@github.com"
+
+                // Desktop-menu grouping for the generated .desktop entry — "Utility" is the closest
+                // freedesktop.org category to what EmuHelper is (a download/library manager, not a
+                // game itself), and shows up sensibly in both a full desktop environment and SteamOS's
+                // Desktop Mode app menu.
+                menuGroup = "Utility"
+
+                // Create a .desktop entry (Linux equivalent of the Windows Start-menu shortcut).
+                shortcut = true
+
+                // No Linux-appropriate icon exists yet (Windows uses an .ico via `windows.iconFile`,
+                // which is NOT valid here — Linux/.deb wants a PNG). Until one is added, jpackage falls
+                // back to a default icon; that's not a blocker. To add one later, drop a PNG under
+                // desktopApp/src/main/resources/ and wire it via this block's own `iconFile`, e.g.:
+                //     iconFile.set(project.file("src/main/resources/EmuHelper.png"))
+
+                // TargetFormat.Rpm is intentionally NOT added — the user asked for .deb + a portable
+                // app-image (Steam Deck/SteamOS), not an rpm; adding rpmLicenseType/rpmPackageVersion
+                // here would configure a format we don't build.
             }
         }
     }

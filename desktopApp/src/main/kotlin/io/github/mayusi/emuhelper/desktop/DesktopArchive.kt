@@ -49,8 +49,17 @@ object DesktopArchive {
         if (entryName.isBlank()) return null
         // Reject absolute-path entries and any raw ".." path segment up front (belt + suspenders
         // ahead of the canonical-path check below, exactly like the Android guard's intent).
+        // Normalize backslashes to forward slashes FIRST and evaluate the checks below on every OS
+        // (not just when the host File semantics treat it as absolute) — a zip built on Windows can
+        // carry "C:\Windows\evil.dll" / backslash-separated entries, and those must be rejected even
+        // when extracted on Linux, where java.io.File does not recognize "\" or a drive letter as
+        // path syntax. Mirrors ArchiveInspector.isPathTraversal's cross-platform drive-prefix check.
         val normalizedSlashes = entryName.replace('\\', '/')
         if (File(entryName).isAbsolute || normalizedSlashes.startsWith("/")) return null
+        if (entryName.contains('\\')) return null // any backslash — Windows-style separator, unsafe on any host
+        if (normalizedSlashes.length >= 2 && normalizedSlashes[1] == ':' && normalizedSlashes[0].isLetter()) {
+            return null // Windows drive-letter prefix, e.g. "C:\..." or "C:/..." — unsafe on any host
+        }
         if (normalizedSlashes.split('/').any { it == ".." }) return null
 
         val canonicalOut = try {
