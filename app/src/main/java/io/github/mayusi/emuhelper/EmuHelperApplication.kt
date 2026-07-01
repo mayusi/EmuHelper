@@ -33,6 +33,18 @@ class EmuHelperApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
+        // Phase 2 (Windows port): the portable download stack in :shared logs through the
+        // platform-agnostic io.github.mayusi.emuhelper.platform.Log facade. Install the Android sink
+        // (android.util.Log) once, first thing, so every log line from the moved RemoteSource /
+        // PersistentCookieJar still reaches logcat exactly as before.
+        io.github.mayusi.emuhelper.platform.Log.install(
+            object : io.github.mayusi.emuhelper.platform.PlatformLog {
+                override fun i(tag: String, msg: String) { Log.i(tag, msg) }
+                override fun w(tag: String, msg: String, t: Throwable?) { Log.w(tag, msg, t) }
+                override fun e(tag: String, msg: String, t: Throwable?) { Log.e(tag, msg, t) }
+            }
+        )
+
         if (BuildConfig.DEBUG) {
             StrictMode.setThreadPolicy(
                 StrictMode.ThreadPolicy.Builder()

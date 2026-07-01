@@ -1,7 +1,12 @@
 # ─── EmuHelper — source URLs are kept out of the public repo ───────────────
 # The real source list is private. Build from the committed template:
-#   cp app/src/main/java/io/github/mayusi/emuhelper/data/config/Catalog.kt.template \
-#      app/src/main/java/io/github/mayusi/emuhelper/data/config/Catalog.kt
+#   cp shared/src/commonMain/kotlin/io/github/mayusi/emuhelper/data/config/Catalog.kt.template \
+#      shared/src/commonMain/kotlin/io/github/mayusi/emuhelper/data/config/Catalog.kt
+# NOTE: the Catalog moved from :app to :shared/commonMain during the Windows port
+# (Phase 3a) so BOTH the Android app and the Compose Desktop app read the same
+# console→source map. The old :app path is kept ignored below too, in case a stale
+# local copy still lingers there — belt-and-suspenders so a real Catalog can never leak.
+shared/src/commonMain/kotlin/io/github/mayusi/emuhelper/data/config/Catalog.kt
 app/src/main/java/io/github/mayusi/emuhelper/data/config/Catalog.kt
 
 # ─── Gradle / Android build ────────────────────────────────────────────────
@@ -63,3 +68,7 @@ docs/specs/
 # Local Gradle homes created for parallel-build isolation (not source)
 .gradle_home/
 .gradle_home_ps/
+
+# Agent scratch / throwaway artifacts
+_scratch/
+_artifacts/

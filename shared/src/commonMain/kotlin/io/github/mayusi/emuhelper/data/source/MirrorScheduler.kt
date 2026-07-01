@@ -54,7 +54,7 @@ package io.github.mayusi.emuhelper.data.source
  * hosts it can pull from ([mirrors], already resolved by the caller), and its [sizeBytes] (used only
  * as a tiebreaker hint — larger files are assigned first so they grab a clean owned mirror).
  */
-internal data class FileDemand(
+/* portable: was internal */ data class FileDemand(
     val fileId: String,
     val mirrors: List<String>,
     val sizeBytes: Long
@@ -66,7 +66,7 @@ internal data class FileDemand(
  * was given no streams this round (only happens when the batch budget is fully consumed by peers —
  * the file simply waits and is picked up on the next rebalance).
  */
-internal data class FileLanePlan(
+/* portable: was internal */ data class FileLanePlan(
     val fileId: String,
     val lanes: List<Lane>
 )
@@ -77,7 +77,7 @@ internal data class FileLanePlan(
  * thread-safe and re-callable on every rebalance. [globalBudget] defaults to the engine's global
  * connection ceiling (24) so the batch's total planned streams never exceed it.
  */
-internal class MirrorScheduler(
+/* portable: was internal */ class MirrorScheduler(
     private val globalBudget: Int = AdaptiveEngine.MAX_ADAPTIVE_WORKERS,
     private val preferredPerHost: Int = AdaptiveEngine.PREFERRED_STREAMS_PER_HOST,
     private val maxPerHost: Int = AdaptiveEngine.MAX_STREAMS_PER_HOST

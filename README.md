@@ -2,13 +2,14 @@
 
 <h1 align="center">EmuHelper</h1>
 
-<p align="center"><strong>An Android download manager for the Internet Archive — browse large collections, build lists, and pull files fast over multiple connections.</strong></p>
+<p align="center"><strong>An Android & Windows download manager for the Internet Archive — browse large collections, build lists, and pull files fast over multiple connections.</strong></p>
 
 <p align="center">
   <a href="https://github.com/mayusi/EmuHelper/releases"><img alt="Release" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmayusi%2FEmuHelper%2Fbadges%2Frelease.json&cacheSeconds=3600"></a>
   <a href="https://github.com/mayusi/EmuHelper/releases"><img alt="Downloads" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmayusi%2FEmuHelper%2Fbadges%2Fdownloads.json&cacheSeconds=3600"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
   <img alt="Min Android 10 (API 29)" src="https://img.shields.io/badge/Android-10%2B%20(API%2029)-3DDC84?logo=android&logoColor=white">
+  <a href="https://github.com/mayusi/EmuHelper/releases"><img alt="Windows" src="https://img.shields.io/badge/Windows-.msi%20%2B%20portable-0078D6?logo=windows&logoColor=white"></a>
   <img alt="Built with Kotlin" src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?logo=kotlin&logoColor=white">
   <a href="https://discord.gg/jEnMYW5YfE"><img alt="Discord" src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white"></a>
 </p>
@@ -19,9 +20,9 @@
 
 ---
 
-EmuHelper is an Android download manager built for the [Internet Archive](https://archive.org). **Grab the APK, sign in with your free Internet Archive account, and you're downloading in under a minute** — the collections are already wired up, so there's nothing to configure. It browses those collections, lets you assemble and save selections, and fetches them with a fast multi-connection transfer engine that drops everything into tidy per-category folders.
+EmuHelper is a download manager for the [Internet Archive](https://archive.org), built for **Android and now Windows too**. **Grab the app, sign in with your free Internet Archive account, and you're downloading in under a minute** — the collections are already wired up, so there's nothing to configure. It browses those collections, lets you assemble and save selections, and fetches them with a fast multi-connection transfer engine that drops everything into tidy per-category folders.
 
-> **Status: Early / Alpha — v0.9.1.** In-app RAR extraction (RAR4 + RAR5), faster small-file batches, and long batches that now survive an Internet Archive session expiry (auto re-login). Plus parallel multi-mirror downloads, resume-after-interruption, and overnight safeguards from v0.8.0, and Xbox & Xbox 360 support from v0.7.0. Still actively being built — expect rough edges, and please file issues.
+> **Status: v1.0.0.** EmuHelper is now a native Windows desktop app as well as Android — same download engine and catalog, ships as a `.msi` installer or a portable app-image with a bundled Java runtime, so there's nothing to install first. PS4 joins the supported consoles, and both apps now run an on-device, best-effort **security scan** on downloaded files before you rely on them. Under the hood, this still builds on the RAR extraction, multi-mirror engine, and Xbox/Xbox 360 support from earlier releases. Still actively being built — expect rough edges, and please file issues.
 
 > *Builders:* the source repository itself is content-free by design — it ships with no collections, generated from an empty template. The prebuilt release is the ready-to-use one; if you build from source you supply your own. See [Build from source](#-build-from-source).
 
@@ -41,8 +42,9 @@ Pulling large files from the Internet Archive down to a phone, tablet, or handhe
 
 ## ✨ Features
 
-- **Configurable collections** — you set up which Internet Archive collections it reads from; none are bundled with the project.
-- **Sign in with your own account** — uses your free Internet Archive login. New here? The app has a built-in, guided "create an account" flow.
+- **Configurable collections** — you set up which Internet Archive collections it reads from; none are bundled with the project. PS4 is now among the supported consoles, alongside the existing lineup.
+- **Sign in with your own account** — uses your free Internet Archive login. New here? The app has a built-in, guided "create an account" flow. On Windows, your login is encrypted at rest with Windows DPAPI, so only your Windows account can decrypt it.
+- **Security scan (best-effort)** — after a download finishes, EmuHelper runs an offline, on-device safety check: known-bad hash lookup, real-vs-claimed file type, archive safety (zip-slip / zip-bomb patterns), and Windows-executable heuristics. You get a colored safety badge and details, and can move flagged files to Quarantine. **This is the best on-device check we could build — not a guarantee.** No offline scanner catches everything, but it's better than nothing, and it never auto-deletes or blocks a download for you.
 - **Two ways to fetch** — build and save a selection set to retrieve later, or run an instant ad-hoc session and download right now.
 - **Fast multi-connection transfers** — each file is pulled with range-segmented (parallel) connections, with mirror/host fail-over where available.
 - **Safe connection cap** — a hard ceiling on total simultaneous connections keeps the device from overheating or thrashing, no matter how aggressive your settings.
@@ -63,25 +65,34 @@ Pulling large files from the Internet Archive down to a phone, tablet, or handhe
 ## 🛠️ Tech stack
 
 - **Language:** Kotlin (Java 17)
+- **Platforms:** Android and Windows, sharing one Kotlin Multiplatform download engine and catalog (`:shared`), with `:app` (Android) and `:desktopApp` (Windows) on top
 - **UI:** Jetpack Compose · Material 3
 - **DI:** Hilt (Dagger)
 - **Navigation:** Navigation-Compose
 - **Networking:** OkHttp
-- **Storage:** DataStore Preferences · EncryptedSharedPreferences (security-crypto) · Storage Access Framework (SAF)
+- **Storage:** DataStore Preferences · EncryptedSharedPreferences (security-crypto) on Android, Windows DPAPI-encrypted credentials on desktop · Storage Access Framework (SAF)
 - **Serialization:** kotlinx.serialization
-- **Min SDK:** 29 (Android 10) · **Target/Compile SDK:** 35
+- **Min SDK:** 29 (Android 10) · **Target/Compile SDK:** 35 · **Windows:** 10 or newer, no separate Java install required (runtime is bundled)
 
 ---
 
 ## 📲 Install
 
+**Android**
+
 1. Download the latest APK from the [Releases](https://github.com/mayusi/EmuHelper/releases) page.
 2. On your device, allow installs from unknown sources for your browser/file manager when prompted.
 3. Open the APK to install. Requires **Android 10 (API 29)** or newer.
 
-> **The prebuilt APK comes ready to use.** Sign in with your Internet Archive account and start downloading right away — the collections are already set up for you, so there's nothing to configure. *(The source repository itself stays content-free by design; if you build from source, you supply your own collections — see below.)*
+**Windows**
 
-> The alpha builds install as a separate `.debug` package, so they won't collide with any future release build.
+1. Download the `.msi` installer (or the portable app-image, if you'd rather not install anything) from the [Releases](https://github.com/mayusi/EmuHelper/releases) page.
+2. It's an unsigned alpha build, so Windows SmartScreen will show an "unknown publisher" warning — click **More info → Run anyway**.
+3. Run it. A Java runtime is bundled in, so there's nothing else to install.
+
+> **Both prebuilt builds come ready to use.** Sign in with your Internet Archive account and start downloading right away — the collections are already set up for you, so there's nothing to configure. *(The source repository itself stays content-free by design; if you build from source, you supply your own collections — see below.)*
+
+> The alpha builds install as a separate `.debug` package on Android, so they won't collide with any future release build.
 
 ---
 

@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext
+import io.github.mayusi.emuhelper.platform.AuthCredentials
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,7 +26,7 @@ import javax.inject.Singleton
  * updates and restarts until the user explicitly logs out.
  */
 @Singleton
-class AuthStore @Inject constructor(@ApplicationContext private val context: Context) {
+class AuthStore @Inject constructor(@ApplicationContext private val context: Context) : AuthCredentials {
 
     companion object {
         private const val ENCRYPTED_PREFS_FILE = "emuhelper_secrets"
@@ -81,12 +82,12 @@ class AuthStore @Inject constructor(@ApplicationContext private val context: Con
     private fun readEmail(): String = try { prefs?.getString(KEY_EMAIL, "") ?: "" } catch (e: Exception) { "" }
     private fun readRemember(): Boolean = try { prefs?.getBoolean(KEY_REMEMBER, true) ?: true } catch (e: Exception) { true }
 
-    suspend fun getSavedPassword(): String = withContext(Dispatchers.IO) {
+    override suspend fun getSavedPassword(): String = withContext(Dispatchers.IO) {
         try { prefs?.getString(KEY_PWD, "") ?: "" } catch (e: Exception) { "" }
     }
 
-    /** Synchronous email getter for the cold-start auto-login path. */
-    fun savedEmailNow(): String = _email.value
+    /** Synchronous email getter for the cold-start auto-login path. (Also satisfies [AuthCredentials].) */
+    override fun savedEmailNow(): String = _email.value
     fun rememberMeNow(): Boolean = _remember.value
 
     suspend fun saveCredentials(email: String, password: String, remember: Boolean) {

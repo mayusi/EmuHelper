@@ -4,7 +4,10 @@
  *
  *  To build EmuHelper you must create the real source list:
  *
- *      1. Copy this file to `Catalog.kt` in the same directory.
+ *      1. Copy this file to `Catalog.kt` in the same directory
+ *         (shared/src/commonMain/kotlin/io/github/mayusi/emuhelper/data/config/).
+ *         Both the Android app (:app) and the Compose Desktop app (:desktopApp)
+ *         read this same catalog from :shared, so it now lives in commonMain.
  *      2. Fill in the `BAKED_IA_LINKS` map below with the endpoint URLs you
  *         configure for each platform key.
  *
@@ -57,6 +60,7 @@ object Catalog {
         "saturn"    to emptyList(),
         "arcade"    to emptyList(),
         "vita"      to emptyList(),
+        "ps4"       to emptyList(),
         "bios"      to emptyList(),
         "n64"       to emptyList(),
         "gcn"       to emptyList(),
@@ -78,6 +82,7 @@ object Catalog {
         "saturn"    to ConsoleDesc("saturn",    "Saturn",              "Saturn",     ""),
         "arcade"    to ConsoleDesc("arcade",    "Arcade",              "Arcade",     ""),
         "vita"      to ConsoleDesc("vita",      "PS Vita",             "Vita",       ""),
+        "ps4"       to ConsoleDesc("ps4",       "PS4 - PlayStation 4", "PS4",        ""),
         "bios"      to ConsoleDesc("bios",      "System Files",        "System",     ""),
         "switch"    to ConsoleDesc("switch",    "Switch",              "Switch",     ""),
         "n64"       to ConsoleDesc("n64",       "Nintendo 64",         "N64",        ""),
@@ -104,6 +109,7 @@ object Catalog {
         "saturn"    to 0xFF89dceb,
         "arcade"    to 0xFFf38ba8,
         "vita"      to 0xFFf5c2e7,
+        "ps4"       to 0xFF74a8fc,
         "bios"      to 0xFF6c7086,
         "switch"    to 0xFFf38ba8,
         "n64"       to 0xFFcba6f7,
@@ -115,7 +121,7 @@ object Catalog {
     )
 
     private val BAKED_ORDER: List<String> = listOf(
-        "ps1", "ps2", "psp", "vita",
+        "ps1", "ps2", "psp", "vita", "ps4",
         "n64", "gcn", "wii", "wiiu", "3ds", "ds",
         "snes", "gba", "gb",
         "genesis", "dreamcast", "saturn",

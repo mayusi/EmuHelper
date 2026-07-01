@@ -17,6 +17,15 @@ kotlinxCoroutines = "1.9.0"
 datastore = "1.1.1"
 documentfile = "1.0.1"
 securityCrypto = "1.1.0-alpha06"
+# JNA (Java Native Access) — desktop-only, used by :desktopApp to call into Windows DPAPI
+# (Crypt32 CryptProtectData/CryptUnprotectData via jna-platform's Crypt32Util helper) so the
+# stored Internet Archive password/cookies are encrypted at rest, scoped to the current Windows
+# user account. jna-platform transitively pulls in jna itself. 5.14.0 is a current stable release.
+jna = "5.14.0"
+# Compose Multiplatform (JetBrains) — the Desktop UI stack for :desktopApp (Phase 3a of the
+# Windows port). 1.7.3 is the stable line built against Kotlin 2.1.0 (matches our kotlin pin),
+# and it bundles its own Compose compiler, so :desktopApp does NOT apply org.jetbrains.kotlin.plugin.compose.
+composeMultiplatform = "1.7.3"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -38,17 +47,36 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
+# Plain-JVM coroutines core — the COMMON coroutine dependency of the :shared KMP module's commonMain.
+# The androidTarget swaps in the -android artifact transitively at runtime; the jvm/desktop target uses
+# this directly. Keeps the pure engine free of any Android coroutine variant.
+kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 androidx-documentfile = { group = "androidx.documentfile", name = "documentfile", version.ref = "documentfile" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto-ktx", version.ref = "securityCrypto" }
+# jna-platform bundles JNA core + the prebuilt Windows Crypt32 mapping (Crypt32Util.cryptProtectData /
+# cryptUnprotectData) — no manual JNA interface mapping needed. Desktop-only (:desktopApp).
+jna-platform = { group = "net.java.dev.jna", name = "jna-platform", version.ref = "jna" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 kotlin-test-junit = { group = "org.jetbrains.kotlin", name = "kotlin-test-junit", version.ref = "kotlin" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesTest" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+# Android library plugin — applied by the :shared KMP module's androidTarget() so :app can consume it
+# as an Android library (AAR/variant-aware metadata).
+android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+# Plain Kotlin/JVM — the :desktopApp headless module (Phase 2 Windows port). Same kotlin version as
+# everything else; declared apply-false at the root so the plugin lands on the classpath once.
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+# Kotlin Multiplatform — the :shared module (pure download engine in commonMain, android + jvm targets).
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+# Compose Multiplatform Gradle plugin — applied by :desktopApp to turn the plain Kotlin/JVM proof
+# module into a real Compose Desktop app. Declared apply-false at the root (same one-version-on-the-
+# classpath pattern as the other plugins) and applied WITHOUT a version in :desktopApp.
+compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }

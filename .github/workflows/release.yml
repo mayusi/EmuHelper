@@ -1,0 +1,130 @@
+# release.yml
+#
+# Builds BOTH platform artifacts for a tagged release and attaches them to the
+# SAME GitHub Release:
+#   • Android  → debug-signed .apk  (built on ubuntu-latest)
+#   • Windows  → .msi installer     (built on windows-latest, needs WiX)
+#
+# TRIGGER
+# ───────
+# Runs when a version tag (v*) is pushed, e.g. `git tag v1.0.0 && git push origin v1.0.0`.
+# Both jobs target the same tag, so softprops/action-gh-release creates (or reuses)
+# ONE release for that tag and both jobs upload their asset onto it.
+#
+# CATALOG (build prerequisite)
+# ────────────────────────────
+# The real source list, Catalog.kt, is git-ignored (source URLs are private). The
+# repo commits Catalog.kt.template as the scaffold. Neither :app nor :desktopApp
+# compiles without a Catalog.kt, so each job MATERIALIZES one by copying the
+# template to the real path (it compiles with empty lists — same as the public
+# "build from source" story). A REAL release would instead inject the real catalog
+# from a repo secret before building; the template-copy is what keeps CI green.
+#
+# WHY DEBUG-SIGNED APK
+# ────────────────────
+# The project ships debug-signed alpha APKs so the in-app updater keeps working
+# across builds (a consistent debug key). Hence `:app:assembleDebug`, not release.
+#
+# WHY WiX FOR THE .msi
+# ────────────────────
+# Compose Desktop's TargetFormat.Msi shells out to the WiX Toolset (v3). The
+# windows-latest runner historically preinstalls WiX 3.x, but we install it
+# explicitly via Chocolatey to be robust against image changes. (If a future
+# runner already has it, `choco install` is a fast no-op.)
+#
+# SmartScreen / unsigned-installer CAVEAT (put this in the release notes)
+# ──────────────────────────────────────────────────────────────────────
+# The .msi is NOT code-signed, so Windows SmartScreen shows an "unknown publisher"
+# / "Windows protected your PC" warning. Users click "More info" → "Run anyway".
+# Signing needs a paid Authenticode certificate — out of scope for alpha releases.
+
+name: Release (APK + MSI)
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Needed so action-gh-release can create the release and upload assets.
+permissions:
+  contents: write
+
+jobs:
+  # ────────────────────────────────────────────────────────────────────────────
+  # Android — debug-signed .apk
+  # ────────────────────────────────────────────────────────────────────────────
+  android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # Materialize the git-ignored Catalog.kt from the committed template so the
+      # app compiles. (Real release: inject the real catalog from a secret here.)
+      - name: Materialize Catalog.kt from template
+        run: |
+          CFG=shared/src/commonMain/kotlin/io/github/mayusi/emuhelper/data/config
+          cp "$CFG/Catalog.kt.template" "$CFG/Catalog.kt"
+
+      - name: Build debug APK
+        run: ./gradlew :app:assembleDebug --console=plain --stacktrace
+
+      # The debug variant applies applicationIdSuffix ".debug", so the output is
+      # app-debug.apk under app/build/outputs/apk/debug/.
+      - name: Upload APK to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/debug/*.apk
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Windows — .msi installer (Compose Desktop + WiX)
+  # ────────────────────────────────────────────────────────────────────────────
+  windows:
+    name: Build Windows MSI
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # Ensure the WiX Toolset (v3) is available — TargetFormat.Msi shells out to
+      # it. windows-latest usually preinstalls WiX 3.x; installing explicitly makes
+      # the build robust to runner-image changes (a no-op if already present).
+      - name: Install WiX Toolset
+        run: choco install wixtoolset -y --no-progress
+
+      # Same Catalog materialization as the Android job (git-ignored → from template).
+      # Uses forward slashes, which work on Windows PowerShell too.
+      - name: Materialize Catalog.kt from template
+        shell: bash
+        run: |
+          CFG=shared/src/commonMain/kotlin/io/github/mayusi/emuhelper/data/config
+          cp "$CFG/Catalog.kt.template" "$CFG/Catalog.kt"
+
+      # packageReleaseMsi builds the optimized (release) MSI. Output lands under
+      # desktopApp/build/compose/binaries/main-release/msi/*.msi
+      - name: Build MSI installer
+        run: ./gradlew :desktopApp:packageReleaseMsi --console=plain --stacktrace
+
+      - name: Upload MSI to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: desktopApp/build/compose/binaries/main-release/msi/*.msi

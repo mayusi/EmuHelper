@@ -1,12 +1,17 @@
 package io.github.mayusi.emuhelper.data.source
 
-import android.util.Log
+// Phase (Windows port): SourceHealthChecker moved to :shared commonMain so the desktop app can
+// reuse the same IA mirror/datacenter reachability probing as Android. The ONLY former Android
+// coupling — android.util.Log — is now the multiplatform seam:
+//   • android.util.Log  -> io.github.mayusi.emuhelper.platform.Log (installed per-platform)
+//   • @Inject/@Singleton-> plain constructor injection (Android wires it in its Hilt @Module;
+//                          desktop builds it by hand). The probing LOGIC is unchanged.
 import io.github.mayusi.emuhelper.data.config.Catalog
+import io.github.mayusi.emuhelper.platform.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -16,8 +21,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
 import java.util.concurrent.TimeUnit
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /** A single source URL result from a health check. */
 data class SourceHealth(
@@ -35,8 +38,7 @@ data class SourceHealth(
  *
  * Concurrency is bounded by a [Semaphore] with [MAX_CONCURRENCY] permits.
  */
-@Singleton
-class SourceHealthChecker @Inject constructor(
+class SourceHealthChecker(
     okHttpClient: OkHttpClient
 ) {
     companion object {
@@ -105,19 +107,19 @@ class SourceHealthChecker @Inject constructor(
                     // HEAD not allowed: fall back to a ranged GET
                     return rangedGet(console, url)
                 }
-                Log.d(TAG, "HEAD $url -> $code")
+                Log.i(TAG, "HEAD $url -> $code")
                 SourceHealth(console, url, alive, code.toString())
             }
         } catch (e: IOException) {
             // Check if this was due to cancellation (call.isCanceled()) or a real network error.
             if (call.isCanceled()) throw kotlinx.coroutines.CancellationException("probe cancelled")
             val msg = e.message?.take(80) ?: e.javaClass.simpleName
-            Log.d(TAG, "probe $url -> exception: $msg")
+            Log.i(TAG, "probe $url -> exception: $msg")
             SourceHealth(console, url, alive = false, detail = msg)
         } catch (e: Exception) {
             if (call.isCanceled()) throw kotlinx.coroutines.CancellationException("probe cancelled")
             val msg = e.message?.take(80) ?: e.javaClass.simpleName
-            Log.d(TAG, "probe $url -> exception: $msg")
+            Log.i(TAG, "probe $url -> exception: $msg")
             SourceHealth(console, url, alive = false, detail = msg)
         } finally {
             // Cancel the in-flight call whenever the coroutine is done with this probe
@@ -141,7 +143,7 @@ class SourceHealthChecker @Inject constructor(
                 resp.body?.close()
                 val code = resp.code
                 val alive = code in 200..399
-                Log.d(TAG, "GET(ranged) $url -> $code")
+                Log.i(TAG, "GET(ranged) $url -> $code")
                 SourceHealth(console, url, alive, "$code")
             }
         } catch (e: IOException) {

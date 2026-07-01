@@ -47,6 +47,8 @@ import io.github.mayusi.emuhelper.ui.common.Dimens
 import io.github.mayusi.emuhelper.ui.common.formatEta
 import io.github.mayusi.emuhelper.ui.common.formatSize
 import io.github.mayusi.emuhelper.ui.common.formatSpeed
+import io.github.mayusi.emuhelper.ui.safety.SafetyBadge
+import io.github.mayusi.emuhelper.ui.safety.SafetyDetailsDialog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -238,6 +240,10 @@ class DownloadViewModel @Inject constructor(
     }
     fun retryTask(task: io.github.mayusi.emuhelper.data.model.DownloadTask) = manager.retry(task.id)
 
+    /** WARN + QUARANTINE model: move a flagged file's task into the on-disk Quarantine/ subfolder.
+     *  Never deletes; see [DownloadManager.quarantine] for the move implementation. */
+    fun quarantineTask(task: io.github.mayusi.emuhelper.data.model.DownloadTask) = manager.quarantine(task.id)
+
     fun clearQueue() {
         scanState.downloadQueue.value = emptyList()
         scanState.pendingListFolderUri.value = null
@@ -283,6 +289,10 @@ fun DownloadScreen(
 
     // FIX 1: Cancel-all confirmation — prevents fat-finger nuke of running batch.
     var showCancelConfirm by remember { mutableStateOf(false) }
+
+    // SAFETY REVIEW: which task's scan-details dialog is open (null = none). Holds the task id so
+    // the dialog always re-reads the LATEST task from `tasks` (e.g. right after quarantining).
+    var safetyDetailsTaskId by remember { mutableStateOf<String?>(null) }
 
     // Run [action] only if Wi-Fi-only doesn't block it; otherwise stash it and prompt.
     val gateWifiOnly: (() -> Unit) -> Unit = { action ->
@@ -369,6 +379,23 @@ fun DownloadScreen(
                 TextButton(onClick = { pendingWifiAction = null }) { Text("Cancel") }
             }
         )
+    }
+
+    // SAFETY REVIEW: details dialog for whichever task's badge was tapped. Re-derived from `tasks`
+    // every recomposition so a "Move to Quarantine" tap immediately reflects in the same dialog.
+    safetyDetailsTaskId?.let { id ->
+        val task = tasks.firstOrNull { it.id == id }
+        val report = task?.scanReport
+        if (task != null && report != null) {
+            SafetyDetailsDialog(
+                report = report,
+                alreadyQuarantined = task.quarantined,
+                onQuarantine = { viewModel.quarantineTask(task) },
+                onDismiss = { safetyDetailsTaskId = null }
+            )
+        } else {
+            safetyDetailsTaskId = null
+        }
     }
 
     Scaffold(
@@ -592,6 +619,18 @@ fun DownloadScreen(
                                     }
                                     if (task.error.isNotBlank()) {
                                         Text(task.error, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                    // SAFETY REVIEW: best-effort scanner verdict badge, shown once a DONE
+                                    // task has been scanned. Tapping it opens the full check breakdown +
+                                    // (for a flagged file) the "Move to Quarantine" action. Absent entirely
+                                    // when null — task not yet scanned, or the scan errored/was skipped,
+                                    // which is never treated as a failure (see DownloadManager.scanDownloadedFile).
+                                    task.scanReport?.let { report ->
+                                        Spacer(Modifier.height(4.dp))
+                                        SafetyBadge(
+                                            report = report,
+                                            onClick = { safetyDetailsTaskId = task.id }
+                                        )
                                     }
                                 }
                                 Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 8.dp)) {

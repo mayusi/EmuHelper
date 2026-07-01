@@ -10,8 +10,13 @@ import io.github.mayusi.emuhelper.data.config.Catalog
 import io.github.mayusi.emuhelper.data.model.CuratedGame
 import io.github.mayusi.emuhelper.data.model.DownloadStatus
 import io.github.mayusi.emuhelper.data.model.DownloadTask
+import io.github.mayusi.emuhelper.data.safety.SafetyVerdict
+import io.github.mayusi.emuhelper.data.safety.ScanReport
+import io.github.mayusi.emuhelper.data.safety.SecurityScanner
 import io.github.mayusi.emuhelper.data.storage.HistoryEntry
 import io.github.mayusi.emuhelper.data.storage.HistoryStore
+import io.github.mayusi.emuhelper.data.source.root.PServerBridge
+import io.github.mayusi.emuhelper.data.source.root.RootPlacement
 import io.github.mayusi.emuhelper.data.storage.QueueStore
 import io.github.mayusi.emuhelper.data.storage.SettingsStore
 import kotlinx.coroutines.CancellationException
@@ -43,6 +48,24 @@ import javax.inject.Singleton
 private class CorruptDownloadException(message: String) : IOException(message)
 
 /**
+ * QUARANTINE (WARN + QUARANTINE model): pure, Android-free path-building for the "move a flagged
+ * file aside for review" feature. Kept as a standalone object (like [RarExtractor.isFirstVolume])
+ * so the destination-path rule is unit-testable without constructing a [DownloadManager].
+ *
+ * The Quarantine folder sits alongside the per-console subfolders under the SAME destination root
+ * the file was published to (SAF tree or the app's default folder), mirroring that subfolder
+ * structure: `<root>/Quarantine/<subfolder>/<filename>`. This keeps quarantined files organised the
+ * same way the library already is, and keeps them easy to find (never hidden, never deleted).
+ */
+object QuarantinePaths {
+    const val FOLDER_NAME = "Quarantine"
+
+    /** Real-filesystem destination for quarantining [filename] out of [subfolder] under [root]. */
+    fun destinationFor(root: File, subfolder: String, filename: String): File =
+        File(File(root, FOLDER_NAME), subfolder).let { File(it, filename) }
+}
+
+/**
  * App-scoped download engine. Lives in the Hilt SingletonComponent and runs work on
  * an application-lifetime CoroutineScope, so downloads keep running when the user
  * leaves the Download screen or backgrounds the app (the foreground DownloadService
@@ -60,7 +83,9 @@ class DownloadManager @Inject constructor(
     private val source: RemoteSource,
     private val settings: SettingsStore,
     private val historyStore: HistoryStore,
-    private val queueStore: QueueStore
+    private val queueStore: QueueStore,
+    private val pserver: PServerBridge,
+    private val scanner: SecurityScanner
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -401,6 +426,108 @@ class DownloadManager @Inject constructor(
         DownloadService.stop(appContext)
     }
 
+    /**
+     * QUARANTINE (WARN + QUARANTINE model — see the Safety review UI): move a flagged, already-
+     * published file into a dedicated "Quarantine" subfolder under the SAME destination root the
+     * file was published to (SAF tree or the app's default folder), mirroring [copyToDestination]'s
+     * two-path handling. This is a MOVE, never a copy (no double disk usage) and NEVER a delete —
+     * the file always remains reachable to the user, just set aside for review.
+     *
+     * Resolves the current destination root the same way [retry] does (the active per-list folder
+     * override if set, else the global setting), since [DownloadTask] doesn't itself carry which
+     * root it was published under. Safe to call any time after the task reaches DONE.
+     */
+    fun quarantine(taskId: String) {
+        scope.launch {
+            val task = latestTasks.firstOrNull { it.id == taskId } ?: return@launch
+            if (task.status != DownloadStatus.DONE) return@launch
+            try {
+                val chosenUri = activeFolderOverride ?: settings.downloadFolder.first()
+                val customRoot = chosenUri?.let { DocumentFile.fromTreeUri(appContext, it) }
+                val defaultRoot = File(appContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "ROMs")
+                val moved = withContext(Dispatchers.IO) {
+                    if (customRoot != null) {
+                        quarantineSaf(customRoot, task.subfolder, task.filename)
+                    } else {
+                        quarantineFile(defaultRoot, task.subfolder, task.filename)
+                    }
+                }
+                if (moved) {
+                    updateTask(taskId) { it.copy(quarantined = true) }
+                } else {
+                    Log.w("EmuHelper", "Quarantine: could not find/move ${task.filename} (already moved or missing)")
+                }
+            } catch (e: Exception) {
+                Log.w("EmuHelper", "Quarantine failed for ${task.filename}", e)
+            }
+        }
+    }
+
+    /** Real-filesystem quarantine: move (rename, falling back to copy+delete) [filename] under
+     *  [root]/[subfolder] into [root]/Quarantine/[subfolder]/. Returns true iff the file ends up
+     *  in the quarantine folder afterwards. Never deletes the source unless the move already
+     *  landed the bytes at the destination. */
+    private fun quarantineFile(root: File, subfolder: String, filename: String): Boolean {
+        val src = File(File(root, subfolder), filename)
+        if (!src.exists()) return false
+        val dest = QuarantinePaths.destinationFor(root, subfolder, filename)
+        dest.parentFile?.mkdirs()
+        if (dest.exists()) dest.delete()
+        if (src.renameTo(dest)) return true
+        // Cross-volume fallback: copy then delete the source only after the copy verifiably
+        // completed with the same size — never delete the original on a failed/partial copy.
+        return try {
+            src.copyTo(dest, overwrite = true)
+            if (dest.length() == src.length()) {
+                src.delete()
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            Log.w("EmuHelper", "Quarantine copy fallback failed for $filename", e)
+            false
+        }
+    }
+
+    /** SAF quarantine: move [filename] from [root]/[subfolder] into [root]/Quarantine/[subfolder]/
+     *  via the DocumentsContract, falling back to a stream copy + delete-source-on-success when a
+     *  direct SAF move isn't supported by the provider. Never deletes the source unless the bytes
+     *  are confirmed at the destination. */
+    private fun quarantineSaf(root: DocumentFile, subfolder: String, filename: String): Boolean {
+        val srcDir = findChildCI(root, subfolder)?.takeIf { it.isDirectory } ?: return false
+        val srcFile = findChildCI(srcDir, filename) ?: return false
+        val quarantineRoot = resolveSafSubdir(root, QuarantinePaths.FOLDER_NAME)
+        val destDir = resolveSafSubdir(quarantineRoot, subfolder)
+        findChildCI(destDir, filename)?.delete()
+        return try {
+            // DocumentsContract.moveDocument is the proper SAF move (no byte copy) when the source
+            // and destination share the same provider/tree, which is always true here.
+            val moved = android.provider.DocumentsContract.moveDocument(
+                appContext.contentResolver, srcFile.uri, srcDir.uri, destDir.uri
+            )
+            if (moved != null) return true
+            // Fallback: stream-copy into a new document, then delete the source only once the
+            // copy is confirmed the same size.
+            val newFile = destDir.createFile("application/octet-stream", filename) ?: return false
+            val srcLen = srcFile.length()
+            appContext.contentResolver.openOutputStream(newFile.uri, "w")?.use { os ->
+                appContext.contentResolver.openInputStream(srcFile.uri)?.use { it.copyTo(os, 1 shl 20) }
+                    ?: return false
+            } ?: return false
+            if (newFile.length() == srcLen) {
+                srcFile.delete()
+                true
+            } else {
+                newFile.delete()
+                false
+            }
+        } catch (e: Exception) {
+            Log.w("EmuHelper", "SAF quarantine failed for $filename", e)
+            false
+        }
+    }
+
     // ---- OVERNIGHT GOVERNORS: thin Android-framework wiring ----------------------------------
 
     /**
@@ -731,6 +858,17 @@ class DownloadManager @Inject constructor(
                 }
             }
 
+            // SECURITY SCANNER (bonus, best-effort — see :shared SecurityScanner kdoc): scan the
+            // FINISHED, MD5-verified cache bytes with the ORIGINAL filename before publish. We scan
+            // HERE (the cache .part/.zip/.rar as fetched) rather than after copy/extract because
+            // copyToDestination may rename-move (not copy) the cache file into place — it can be gone
+            // by the time publish returns — and archive extraction fans a single download out into
+            // many destination files, so there is no single "published file" to scan for that case.
+            // Scanning the source archive/bytes still reflects exactly what the user downloaded.
+            // scanDownloadedFile() swallows every exception itself, so a scanner bug/crash can NEVER
+            // fail or slow down an already-successful, already-verified download.
+            val scanReport = scanDownloadedFile(cacheFile, filename)
+
             _statusText.value = "Saving $filename…"
             if (extractArchives && filename.lowercase().endsWith(".zip")) {
                 extractZipToDestination(cacheFile, customRootBase, defaultRootBase, subfolder)
@@ -745,7 +883,14 @@ class DownloadManager @Inject constructor(
             }
             // Published successfully — the .part + manifest have done their job; drop both.
             discardPartAndManifest()
-            updateTask(taskId) { it.copy(downloaded = if (expected > 0) expected else total, status = DownloadStatus.DONE, speed = 0.0) }
+            updateTask(taskId) {
+                it.copy(
+                    downloaded = if (expected > 0) expected else total,
+                    status = DownloadStatus.DONE,
+                    speed = 0.0,
+                    scanReport = scanReport
+                )
+            }
         } catch (c: CancellationException) {
             // The user explicitly cancelled (or paused-then-cancelled): there is nothing to resume,
             // so drop the .part + manifest. (A process FORCE-KILL never reaches this catch — the
@@ -778,6 +923,27 @@ class DownloadManager @Inject constructor(
             // Free this file's mirror demand on EVERY exit path (done/failed/cancelled) so the batch
             // scheduler reassigns its datacenter to the remaining files on their next rebalance.
             activeDemands.remove(taskId)
+        }
+    }
+
+    /**
+     * SECURITY SCANNER (bonus, best-effort): run [scanner] over [file] and return the [ScanReport],
+     * or null on ANY failure (I/O error, OOM on a huge file, scanner bug, cancellation racing the
+     * file being moved out from under it, etc.). The scan is a nice-to-have layered on top of an
+     * ALREADY-successful, ALREADY-MD5-verified download — it must NEVER fail or delay publishing
+     * that download, so every exception is swallowed here rather than propagated.
+     *
+     * A genuine [CancellationException] IS still allowed to propagate: if the whole download job is
+     * being cancelled we want that to actually cancel, not get silently absorbed here.
+     */
+    private suspend fun scanDownloadedFile(file: File, declaredName: String): ScanReport? {
+        return try {
+            scanner.scan(file, declaredName = declaredName)
+        } catch (c: CancellationException) {
+            throw c
+        } catch (e: Throwable) {
+            Log.w("EmuHelper", "Security scan failed for $declaredName; proceeding without a verdict", e)
+            null
         }
     }
 
@@ -851,8 +1017,128 @@ class DownloadManager @Inject constructor(
         } else {
             val dir = File(defaultRootBase, subfolder).apply { mkdirs() }
             val dest = File(dir, filename)
-            if (dest.exists()) dest.delete()
-            cacheFile.copyTo(dest, overwrite = true)
+            // OPTIONAL fast placement for real-filesystem destinations. Strictly best-effort and
+            // fully invisible: if it isn't available or anything is off, we fall straight through to
+            // the normal copy below, which remains the source of truth. SAF (content://) is handled
+            // in the branch above and is never touched here.
+            if (tryFastPlacement(cacheFile, dest)) return
+            try {
+                if (dest.exists()) dest.delete()
+                // DISK-EFFICIENCY: try an O(1) MOVE before a full byte copy. On a handheld the cache
+                // (/data/...) and the real-File destination usually sit on the SAME physical
+                // filesystem, so renameTo is an instant inode rename that needs ZERO extra disk —
+                // critical for a 100GB+ .pkg where a copy would briefly need 2x the file's size.
+                // renameTo only succeeds within one volume; on a cross-volume (EXDEV) destination it
+                // returns false WITHOUT moving anything, so we simply fall through to the byte copy
+                // (unchanged behaviour). dest was deleted just above (renameTo fails if dest exists on
+                // some filesystems), and the MD5 verify already ran on the cache file before we got
+                // here, so a renamed file is already verified — correctness is preserved. After a
+                // successful rename the cache .part is GONE; the success path's discardPartAndManifest()
+                // tolerates that (File.delete() returns false, never throws, when the file is missing).
+                if (cacheFile.renameTo(dest)) return
+                cacheFile.copyTo(dest, overwrite = true)
+            } catch (e: Exception) {
+                // Normal copy failed (permission/IO). As a LAST resort, retry once via the optional
+                // accelerator if it can reach this real path; if that also fails, rethrow the
+                // ORIGINAL error so the existing failure handling is unchanged. Never swallow.
+                if (tryFastPlacement(cacheFile, dest)) {
+                    Log.d("EmuHelper", "recovered placement for ${dest.name} after normal copy error")
+                } else {
+                    throw e
+                }
+            }
+        }
+    }
+
+    /**
+     * Best-effort accelerated placement of [cacheFile] at [dest] for a REAL filesystem destination.
+     * Returns true ONLY if the file was placed AND verified at [dest] with the expected size; in that
+     * case the caller is done. Returns false for EVERY other outcome (fast path unavailable, dest not
+     * eligible, command failure, verify mismatch, any exception) — the caller then does the normal
+     * copy. This can never lose or corrupt a file: a failed attempt just means the normal copy runs
+     * next and overwrites whatever (if anything) was placed.
+     *
+     * Gating order is cheapest-first: a synchronous cached check, then the cached suspend probe, so a
+     * device without the accelerator pays essentially nothing.
+     */
+    private fun tryFastPlacement(cacheFile: File, dest: File): Boolean {
+        return try {
+            // App-private write roots derived from THIS build's real package id (carries a `.debug`
+            // suffix on debug builds), so the source cache path is eligible on every variant. Both the
+            // dataDir form and the canonical /data/data + /data/user/0 forms are accepted, since the
+            // cache File's absolute path may surface as either depending on the device/Android version.
+            val extraRoots = buildList {
+                RootPlacement.appPrivateRoot(appContext.applicationInfo.dataDir)?.let { add(it) }
+                val pkg = appContext.packageName
+                RootPlacement.appPrivateRoot("/data/data/$pkg")?.let { add(it) }
+                RootPlacement.appPrivateRoot("/data/user/0/$pkg")?.let { add(it) }
+            }
+            // Eligibility (pure, cheap) BEFORE any probe: skip non-eligible paths (e.g. names with
+            // spaces) so we don't even consult the accelerator for a destination it couldn't take.
+            val srcPath = RootPlacement.cleanEligiblePath(cacheFile.absolutePath, extraRoots) ?: return false
+            val dstPath = RootPlacement.eligibleDestPath(dest, extraRoots) ?: return false
+            // DISK-EFFICIENCY: prefer a MOVE (mv) over a copy (cp). On a handheld the cache and the
+            // destination almost always share one filesystem, so `mv` is an O(1) inode rename that
+            // needs ZERO extra disk and frees the cache as it goes — essential for 100GB+ .pkg files
+            // that otherwise need 2x their size transiently. If `mv` fails (typically a cross-device
+            // EXDEV move, returned as a non-zero status), we fall back to the `cp` commands; and if
+            // THAT also can't run, copyToDestination's own renameTo→copyTo (Part A) still handles it.
+            // buildMoveCommands constrains BOTH src and dst to write roots (mv deletes its source), so
+            // we never even try to mv a system/other-app path — and the guard independently enforces
+            // the same source constraint, so an off-spec mv would be BLOCKED anyway.
+            val moveCommands = RootPlacement.buildMoveCommands(srcPath, dstPath, extraRoots)
+            val copyCommands = RootPlacement.buildPlaceCommands(srcPath, dstPath, extraRoots) ?: return false
+            // Snapshot the expected size NOW, before any command runs — a successful `mv` removes the
+            // cache source, so we must not read cacheFile.length() after the move.
+            val expectedSize = cacheFile.length()
+            if (expectedSize <= 0L) return false
+
+            // Cheapest gate first; only consult the (cached) probe if the sync flag isn't set yet.
+            val available = pserver.availableNow() || kotlinx.coroutines.runBlocking { pserver.isAvailable() }
+            if (!available) return false
+
+            kotlinx.coroutines.runBlocking {
+                // Run a guard-shaped command list, stopping (returning false) on the first non-zero
+                // status or null transact. Returns true only if every command succeeded.
+                suspend fun runAll(cmds: List<String>): Boolean {
+                    for (cmd in cmds) {
+                        val res = pserver.executeShell(cmd) ?: return false
+                        if (res.first != 0) return false
+                    }
+                    return true
+                }
+                // Verify via plain File (the same on-disk path) — size must match the staged cache.
+                // After a successful `mv` the source is already gone, which is the win; we verify the
+                // DEST only, against the size snapshotted before the move.
+                fun placedOk(): Boolean = dest.exists() && dest.length() == expectedSize
+
+                // 1) Try the move fast-path (instant, frees the cache). On success we're done.
+                if (moveCommands != null) {
+                    val allOk = runAll(moveCommands)
+                    // Success if every command ran clean, OR the file is correctly placed AND the
+                    // cache source is gone (proves the `mv` itself moved the bytes — only a trailing,
+                    // non-essential `chmod` could have failed; placement is still correct). This
+                    // guarantees we never fall through to a cp/normal-copy that would fail with a
+                    // now-missing source even though the file is actually safely at the destination.
+                    if (placedOk() && (allOk || !cacheFile.exists())) {
+                        Log.d("EmuHelper", "fast placement (mv) ok for ${dest.name}")
+                        return@runBlocking true
+                    }
+                }
+                // 2) Fall back to the copy fast-path. Only reachable when the cache source still
+                //    exists (a successful mv returns above), so cp has a real source to read. cp
+                //    overwrites the dest in place; if it can't run we return false and the normal
+                //    copyToDestination path takes over. Never loses a file.
+                if (runAll(copyCommands) && placedOk()) {
+                    Log.d("EmuHelper", "fast placement (cp) ok for ${dest.name}")
+                    return@runBlocking true
+                }
+                false
+            }
+        } catch (e: Exception) {
+            // Any failure at all -> silent fall through to the normal copy.
+            Log.d("EmuHelper", "fast placement skipped for ${dest.name}: ${e.javaClass.simpleName}")
+            false
         }
     }
 
@@ -1066,7 +1352,9 @@ class DownloadManager @Inject constructor(
                 name = task.name,
                 // Carry the source checksum into history so the on-disk Library view can
                 // integrity-verify a file later against the hash it was downloaded with.
-                md5 = task.md5
+                md5 = task.md5,
+                // Best-effort scanner verdict (blank when not scanned / scan unavailable).
+                scanVerdict = task.scanReport?.verdict?.name ?: ""
             )
         }
         historyStore.addAll(entries)

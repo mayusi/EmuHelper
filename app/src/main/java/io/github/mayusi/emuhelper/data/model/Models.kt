@@ -1,19 +1,13 @@
 package io.github.mayusi.emuhelper.data.model
 
+import io.github.mayusi.emuhelper.data.safety.ScanReport
 import java.io.Serializable
 import kotlinx.serialization.Serializable as KSerializable
 
-data class GameFile(
-    val name: String,
-    val filename: String,
-    val size: Long,
-    val identifier: String,
-    val sourceUrl: String = "",
-    /** Lowercase MD5 hex from the source item's metadata, used to verify a finished
-     *  download. Defaulted to empty for back-compat and for files whose metadata
-     *  omits a checksum (verification is skipped when blank). */
-    val md5: String = ""
-) : Serializable
+// NOTE: GameFile (the pure scan-result model) now lives in :shared commonMain
+// (io.github.mayusi.emuhelper.data.model.GameFile) so the portable RemoteSource can return it on
+// both Android and desktop. It is the SAME package, so every existing `import ...data.model.GameFile`
+// and unqualified use in :app resolves unchanged. The UI-facing models below stay here.
 
 @KSerializable
 data class CuratedGame(
@@ -91,7 +85,16 @@ data class DownloadTask(
     val downloaded: Long = 0,
     val speed: Double = 0.0,
     val status: DownloadStatus = DownloadStatus.QUEUED,
-    val error: String = ""
+    val error: String = "",
+    /**
+     * SECURITY SCANNER (best-effort, offline; see [io.github.mayusi.emuhelper.data.safety.SecurityScanner]).
+     * Populated once a DONE task's file has been scanned. Null means "not scanned yet" (task still
+     * running) OR "scan didn't run / errored" — a scan failure NEVER fails the download itself, it
+     * just leaves this null so the UI has nothing to show rather than a false result.
+     */
+    val scanReport: ScanReport? = null,
+    /** True once the user has moved this file into the on-disk Quarantine/ subfolder. */
+    val quarantined: Boolean = false
 ) {
     /** Returns null when size is unknown so the UI can show an indeterminate bar. */
     val progressPercent: Float?

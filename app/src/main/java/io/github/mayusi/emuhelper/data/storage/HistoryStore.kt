@@ -47,7 +47,11 @@ data class HistoryEntry(
      *  this field stays "" for newly recorded entries, so the Library's integrity re-check shows
      *  "no reference hash" rather than a match/mismatch. The on-disk MD5 is still recomputed and
      *  displayed; only the reference comparison waits on DownloadManager populating this. */
-    val md5: String = ""
+    val md5: String = "",
+    /** Best-effort SECURITY SCANNER verdict name (e.g. "LOCAL_CLEAR", "RISKY"), carried from
+     *  [io.github.mayusi.emuhelper.data.model.DownloadTask.scanReport]. Blank means "not scanned /
+     *  scan unavailable" — never treated as a clean result by the UI. */
+    val scanVerdict: String = ""
 )
 
 /**

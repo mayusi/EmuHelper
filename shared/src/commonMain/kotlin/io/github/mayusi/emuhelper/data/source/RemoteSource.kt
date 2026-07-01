@@ -1,9 +1,17 @@
 package io.github.mayusi.emuhelper.data.source
 
-import android.util.Log
-import io.github.mayusi.emuhelper.BuildConfig
+// Phase 2 (Windows port): RemoteSource now lives in :shared commonMain so the desktop app reuses the
+// IA networking + the laned download driver byte-for-byte. The ONLY former Android couplings —
+// android.util.Log, BuildConfig, AuthStore, Hilt — are now multiplatform seams:
+//   • android.util.Log  -> io.github.mayusi.emuhelper.platform.Log (installed per-platform)
+//   • BuildConfig.DEBUG -> the injected [appInfo].debug
+//   • AuthStore         -> the narrow [AuthCredentials] seam (android AuthStore implements it)
+//   • @Inject/@Singleton-> plain constructor injection (Android wires it in its Hilt @Module; desktop
+//                          builds it by hand). The download LOGIC is unchanged.
+import io.github.mayusi.emuhelper.platform.Log
+import io.github.mayusi.emuhelper.platform.AppInfo
+import io.github.mayusi.emuhelper.platform.AuthCredentials
 import io.github.mayusi.emuhelper.data.model.GameFile
-import io.github.mayusi.emuhelper.data.storage.AuthStore
 import io.github.mayusi.emuhelper.di.PersistentCookieJar
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -24,15 +32,13 @@ import okhttp3.Request
 import java.io.File
 import java.io.IOException
 import java.io.OutputStream
-import javax.inject.Inject
-import javax.inject.Singleton
 import kotlin.math.min
 
-@Singleton
-class RemoteSource @Inject constructor(
+class RemoteSource(
     private val okHttpClient: OkHttpClient,
     private val cookieJar: PersistentCookieJar,
-    private val authStore: AuthStore
+    private val authStore: AuthCredentials,
+    private val appInfo: AppInfo = AppInfo.UNKNOWN,
 ) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
@@ -246,7 +252,7 @@ class RemoteSource @Inject constructor(
             for (attempt in 0 until 4) {
                 val (code, body) = postCreds()
                 lastCode = code
-                if (BuildConfig.DEBUG) { Log.i("EmuHelper", "login attempt $attempt: code=$code hasCookies=${cookieJar.hasCookies()}") }
+                if (appInfo.debug) { Log.i("EmuHelper", "login attempt $attempt: code=$code hasCookies=${cookieJar.hasCookies()}") }
 
                 if (cookieJar.hasCookies()) {
                     return@withContext LoginResult.Success
@@ -567,11 +573,12 @@ class RemoteSource @Inject constructor(
         pool.ifEmpty { listOf(good.first().url) }
     }
 
-    // INTERNAL (was public): the new MULTI-FILE BATCH SCHEDULER params reference the engine's
-    // internal types ([MirrorScheduler], [FileDemand]). Kotlin forbids a public function from
-    // exposing internal parameter types, and this method is only ever called by [DownloadManager]
-    // (same module), so making it internal is correct and changes nothing for callers.
-    internal suspend fun downloadFileSegmented(
+    // PUBLIC again (Phase 2 Windows port): this is now in :shared and [DownloadManager] lives in a
+    // SEPARATE module (:app), so the driver must be public to be callable across the boundary. Its
+    // scheduler params ([MirrorScheduler], [FileDemand]) are PUBLIC in :shared now (they were made
+    // public when the engine moved in Phase 1a), so a public signature is legal again. (It had been
+    // made `internal` only while everything shared one module.)
+    suspend fun downloadFileSegmented(
         candidateUrls: List<String>,
         expectedSize: Long,
         destFile: File,

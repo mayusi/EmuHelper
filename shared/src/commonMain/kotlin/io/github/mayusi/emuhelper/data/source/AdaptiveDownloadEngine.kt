@@ -22,7 +22,7 @@ import kotlinx.coroutines.sync.withLock
  */
 
 /** Engine-wide constants for the adaptive (chunk-queue) path. */
-internal object AdaptiveEngine {
+/* portable: was internal */ object AdaptiveEngine {
     /** Fixed chunk size: 8 MB. The last chunk absorbs the remainder. */
     const val CHUNK_SIZE: Long = 8L * 1024 * 1024
 
@@ -213,7 +213,7 @@ internal object AdaptiveEngine {
  * the file's nominal warm-stream count; at runtime every runner still acquires a shared
  * connectionBudget permit before opening its socket, so the global 24-cap holds regardless.
  */
-internal data class Lane(val host: String, val streams: Int)
+/* portable: was internal */ data class Lane(val host: String, val streams: Int)
 
 /**
  * A cached per-item host resolution + ranking (BATCH-WIDE SETUP ELISION, v0.9). It records, for one
@@ -237,7 +237,7 @@ internal data class Lane(val host: String, val streams: Int)
  * a stale reuse can never publish a corrupt file — at worst it costs one failed attempt that the
  * normal failover/error path absorbs.
  */
-internal data class HostResolution(
+/* portable: was internal */ data class HostResolution(
     val hostPrefixes: List<String>,
     val distinctPrefixes: List<String>,
     val probeRates: Map<String, Double>,
@@ -258,7 +258,7 @@ internal data class HostResolution(
  * identifier and additionally TTL-bounded. All access is synchronized; the map is tiny (one entry per
  * recently-scanned item, LRU-capped) so contention is negligible.
  */
-internal class HostResolutionCache(
+/* portable: was internal */ class HostResolutionCache(
     private val ttlMs: Long = AdaptiveEngine.HOST_CACHE_TTL_MS,
     private val maxEntries: Int = 16,
     private val nowProvider: () -> Long = { System.currentTimeMillis() }
@@ -324,7 +324,7 @@ internal class HostResolutionCache(
 }
 
 /** What the connection pre-warmer decides to do for an item (CONNECTION PRE-WARMING, v0.9). */
-internal data class PrewarmDecision(
+/* portable: was internal */ data class PrewarmDecision(
     /** Whether to fire any warm-up GETs at all. */
     val warm: Boolean,
     /** The hosts to warm — capped at [AdaptiveEngine] ≤3 (one per datacenter). Empty when [warm] is false. */
@@ -344,7 +344,7 @@ internal data class PrewarmDecision(
  * than a handful of tiny connections. Pre-warming acquires NO download permit (it is pre-Semaphore and
  * the GETs are trivial), so it can never push the live connection count over the 24-cap.
  */
-internal fun decidePrewarm(
+/* portable: was internal */ fun decidePrewarm(
     resolvedHosts: List<String>,
     wifiOnly: Boolean,
     isMetered: Boolean,
@@ -382,7 +382,7 @@ internal fun decidePrewarm(
  *   preference up to [maxPerHost]. For the multi-mirror case the preference is always the target
  *   (deepening is suppressed) — spread, don't pile on. Default true.
  */
-internal fun planLanes(
+/* portable: was internal */ fun planLanes(
     mirrors: List<String>,
     budget: Int,
     preferredPerHost: Int = AdaptiveEngine.PREFERRED_STREAMS_PER_HOST,
@@ -440,7 +440,7 @@ internal fun planLanes(
  * An immutable chunk of the file: the absolute byte range [start, end] INCLUSIVE.
  * length == end - start + 1. [index] is its position in the partition (0-based, contiguous).
  */
-internal data class Chunk(val index: Int, val start: Long, val end: Long) {
+/* portable: was internal */ data class Chunk(val index: Int, val start: Long, val end: Long) {
     val length: Long get() = end - start + 1
 }
 
@@ -455,7 +455,7 @@ internal data class Chunk(val index: Int, val start: Long, val end: Long) {
  *
  * For size <= 0 returns an empty list (the small-file fast path never calls this).
  */
-internal fun partitionChunks(size: Long, chunkSize: Long = AdaptiveEngine.CHUNK_SIZE): List<Chunk> {
+/* portable: was internal */ fun partitionChunks(size: Long, chunkSize: Long = AdaptiveEngine.CHUNK_SIZE): List<Chunk> {
     if (size <= 0L) return emptyList()
     val effChunk = chunkSize.coerceAtLeast(1L)
     val chunks = ArrayList<Chunk>()
@@ -504,7 +504,7 @@ internal fun partitionChunks(size: Long, chunkSize: Long = AdaptiveEngine.CHUNK_
 // testable against an in-memory buffer with no file/network; production passes a RandomAccessFile
 // reader. Uses java.security.MessageDigest (available in plain JVM unit tests).
 // =====================================================================================
-internal class IncrementalMd5Accumulator(
+/* portable: was internal */ class IncrementalMd5Accumulator(
     private val totalSize: Long,
     chunks: List<Chunk>,
     /** Reads exactly [len] bytes from absolute offset [start] of the committed file. */
@@ -585,7 +585,7 @@ internal class IncrementalMd5Accumulator(
 }
 
 /** Which MD5 verification path to use after a download completes (INCREMENTAL MD5, v0.9). */
-internal enum class Md5Strategy {
+/* portable: was internal */ enum class Md5Strategy {
     /** Use the incremental accumulator's digest if it proved complete, else fall back to full pass. */
     INCREMENTAL_THEN_FULL,
     /** Skip the incremental path entirely; always run the authoritative full pass. */
@@ -606,7 +606,7 @@ internal enum class Md5Strategy {
  * Otherwise INCREMENTAL_THEN_FULL: try the accumulator, fall back to full pass if it can't prove
  * complete. The accumulator's own [IncrementalMd5Accumulator.digestIfComplete] is the second gate.
  */
-internal fun decideMd5Strategy(
+/* portable: was internal */ fun decideMd5Strategy(
     adaptive: Boolean,
     resumed: Boolean,
     expectedMd5Blank: Boolean
@@ -644,7 +644,7 @@ internal fun decideMd5Strategy(
  * e.g. "v1|104857600|8388608|0,1,2,5,7" — done chunks 0,1,2,5,7 of a 100 MB file in 8 MB chunks.
  * The done-list may be empty ("v1|...|...|"). Pure text, no JSON dependency, trivially testable.
  */
-internal object ResumeManifest {
+/* portable: was internal */ object ResumeManifest {
     /** Current manifest format version tag. Bumped only if the line format itself changes. */
     const val VERSION = "v1"
     private const val SEP = "|"
@@ -721,7 +721,7 @@ internal object ResumeManifest {
  * All state is guarded by an intrinsic lock — operations are O(1)/O(count) over a tiny set, so
  * contention is negligible even with 24 workers. No coroutines: pure, synchronous, testable.
  */
-internal class ChunkQueue(
+/* portable: was internal */ class ChunkQueue(
     chunks: List<Chunk>,
     /** Injected clock so tail-race timing is deterministic in tests. */
     private val nowProvider: () -> Long = { System.currentTimeMillis() },
@@ -1093,7 +1093,7 @@ internal class ChunkQueue(
  *     (sustained, not a single jittery sample), and
  *   - there is unclaimed work to migrate to (checked by the caller).
  */
-internal class RecentRateWindow(
+/* portable: was internal */ class RecentRateWindow(
     private val capacity: Int = AdaptiveEngine.RECENT_RATE_WINDOW
 ) {
     private val lock = Any()
@@ -1189,7 +1189,7 @@ internal class RecentRateWindow(
  * Pure logic: a [nowProvider] is injected so tests control time deterministically, and a
  * [rng] seam makes the weighted pick reproducible. All state under an intrinsic lock.
  */
-internal class HostScoreboard(
+/* portable: was internal */ class HostScoreboard(
     hosts: List<String>,
     seedEwma: Map<String, Double> = emptyMap(),
     private val nowProvider: () -> Long = { System.currentTimeMillis() },
@@ -1349,7 +1349,7 @@ internal class HostScoreboard(
 // =====================================================================================
 
 /** What the Wi-Fi-only governor decides to do in response to a network change. */
-internal enum class WifiGovernorAction { PAUSE, RESUME, NONE }
+/* portable: was internal */ enum class WifiGovernorAction { PAUSE, RESUME, NONE }
 
 /**
  * (3a) WI-FI-ONLY ENFORCEMENT — pure decision.
@@ -1368,7 +1368,7 @@ internal enum class WifiGovernorAction { PAUSE, RESUME, NONE }
  * When [wifiOnly] is OFF: if the governor had previously paused the batch (the user just turned the
  * setting off mid-pause), RESUME to undo our own pause; else NONE.
  */
-internal fun decideWifiGovernorAction(
+/* portable: was internal */ fun decideWifiGovernorAction(
     wifiOnly: Boolean,
     isConnected: Boolean,
     isMetered: Boolean,
@@ -1404,7 +1404,7 @@ internal fun decideWifiGovernorAction(
  *     hold (globalBudget − reducedCap) permits — but never so many that the live cap falls below 1
  *     (at least one connection always survives so the download keeps inching forward).
  */
-internal fun thermalPermitsToHold(
+/* portable: was internal */ fun thermalPermitsToHold(
     thermalStatus: Int,
     globalBudget: Int = AdaptiveEngine.MAX_ADAPTIVE_WORKERS,
     reducedCap: Int = AdaptiveEngine.THERMAL_REDUCED_CAP,
@@ -1418,7 +1418,7 @@ internal fun thermalPermitsToHold(
 }
 
 /** PowerManager.THERMAL_STATUS_SEVERE ordinal (=3), inlined so the pure logic needs no Android import. */
-internal const val THERMAL_STATUS_SEVERE: Int = 3
+/* portable: was internal */ const val THERMAL_STATUS_SEVERE: Int = 3
 
 /**
  * THERMAL PERMIT GOVERNOR — operates ONLY on a kotlinx [kotlinx.coroutines.sync.Semaphore] (the
@@ -1435,7 +1435,7 @@ internal const val THERMAL_STATUS_SEVERE: Int = 3
  * coroutine. Concurrency: [applyThermalStatus] is serialized by an internal mutex so two rapid
  * thermal transitions can't race the held-permit count.
  */
-internal class ThermalPermitGovernor(
+/* portable: was internal */ class ThermalPermitGovernor(
     private val connectionBudget: kotlinx.coroutines.sync.Semaphore,
     private val globalBudget: Int = AdaptiveEngine.MAX_ADAPTIVE_WORKERS,
     private val reducedCap: Int = AdaptiveEngine.THERMAL_REDUCED_CAP

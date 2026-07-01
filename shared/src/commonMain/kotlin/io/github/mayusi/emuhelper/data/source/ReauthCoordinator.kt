@@ -37,7 +37,8 @@ import kotlinx.coroutines.sync.withLock
  * which is exactly the single-flight guarantee. The lock is held only for the brief login POST, never
  * for the multi-MB chunk transfers, so it does not serialize the download itself.
  */
-internal class ReauthCoordinator(
+/* portable: was internal — public so the :shared RemoteSource + the :app unit test both resolve it across the module boundary (Phase 2 Windows port). */
+class ReauthCoordinator(
     /** Performs the actual re-login (e.g. RemoteSource.login(savedEmail, savedPassword) == Success). */
     private val doLogin: suspend () -> Boolean,
     /** True when there are non-blank saved credentials to re-login with. */

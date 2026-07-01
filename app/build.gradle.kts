@@ -18,8 +18,8 @@ android {
         applicationId = "io.github.mayusi.emuhelper"
         minSdk = 29
         targetSdk = 35
-        versionCode = 28
-        versionName = "0.9.1"
+        versionCode = 29
+        versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
 
@@ -69,6 +69,10 @@ android {
 }
 
 dependencies {
+    // Portable download-engine core (AdaptiveDownloadEngine, MirrorScheduler, ...) lives in :shared
+    // now. RemoteSource/DownloadManager keep their imports unchanged — same package, public API.
+    implementation(project(":shared"))
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
